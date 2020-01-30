@@ -5,6 +5,8 @@
 #include<netinet/in.h>
 #include<unistd.h>    
 #include<string.h>  
+#include<math.h>
+#include<time.h>        //for srand function
 
 // char* getData();
 int connectSocket(int);
@@ -81,16 +83,28 @@ int main(){
         printf("%d\n", connectStatus);
 
     if(packet.totalLength > MTU){
-        struct Packet fragmentedPacket;
+
+        int noOfFragments = (int)ceil((float)(packet.totalLength - packet.headerLength)/(float)(MTU - packet.headerLength));
+        struct Packet fragmentedPacket,fragmentedPackets[noOfFragments];
         int fragOffset = 0;
+        int index = 0;
+
         for(int i = 0; i < (packet.totalLength - packet.headerLength); i += (MTU - packet.headerLength)){
             fragmentedPacket = setHeader(fragmentedPacket, packet.version, packet.headerLength, fragOffset++);
             strncpy(fragmentedPacket.data, packet.data+i, (MTU - packet.headerLength));
             fragmentedPacket = setFlag(fragmentedPacket, MTU);
 
-            send(clientSocket, (void *)&fragmentedPacket, sizeof(fragmentedPacket), 0);
+            fragmentedPackets[index++] = fragmentedPacket;
         }
-    }else{
+
+        //shuffling Fragments
+        srand(time(NULL));
+        for(int j=0; j<noOfFragments; j++){
+            index = rand() % noOfFragments;
+            send(clientSocket, (void *)&fragmentedPackets[index], sizeof(fragmentedPackets[index]), 0);
+        }
+    }
+    else{
         send(clientSocket, (void *)&packet, sizeof(packet), 0);
     }
 
