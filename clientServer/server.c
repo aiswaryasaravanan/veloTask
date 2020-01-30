@@ -6,10 +6,14 @@
 #include<unistd.h>
 #include<arpa/inet.h>
 
+int connectSocket(int);
+// void printFragmentedPackets(struct Packet);
+
 struct IPFlag{
     int DF;
     int MF;
 };
+
 
 struct Packet{
     int version; 
@@ -19,48 +23,58 @@ struct Packet{
     int fragmentOffset;
     // char* sourceAddress;
     // char* destinationAddress;
-    char *data;
+    char data[200];
 };
 
-int main(){
 
-    struct Packet packet;
-
-    int serverSocket;    
-    serverSocket = socket(AF_INET, SOCK_STREAM, 0);
-    
+int connectSocket(int serverSocket){
     struct sockaddr_in serverAddress;
     serverAddress.sin_family = AF_INET;             //ipv4
-    serverAddress.sin_addr.s_addr = INADDR_ANY;     //any available protocol
+    serverAddress.sin_addr.s_addr = INADDR_ANY;     
     serverAddress.sin_port = htons(8080);           //host to network byte addr translation
 
-    bind(serverSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress));
-    listen(serverSocket, 5);                        //backlog queue size=5(maximum no. of connection it can wait for)
+    int bindStatus = bind(serverSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress));
+    if(bindStatus < 0)
+        printf("%d", bindStatus);
 
-    int clientSocket;
-    clientSocket = accept(serverSocket, (struct sockaddr*)&serverAddress, (socklen_t*)&serverAddress);
+    int listenStatus = listen(serverSocket, 5);
+    if(listenStatus < 0)                            //backlog queue size=5(maximum no. of connection it can wait for)
+        printf("%d", listenStatus);
 
-    int readStatus = read(clientSocket, (struct Packet*)&packet, sizeof(packet));
+    return accept(serverSocket, (struct sockaddr*)&serverAddress, (socklen_t*)&serverAddress);
+}
 
+
+void printFragmentedPackets(struct Packet packet){
     printf("Version:%d\n", packet.version);
     printf("HeaderLength:%d\n", packet.headerLength);
     printf("TotalLength:%d\n", packet.totalLength);
     printf("FragmentOffset:%d\n", packet.fragmentOffset);
+    printf("Data:%s\n",packet.data);
     printf("DF flag:%d\n", packet.ipflag.DF);
     printf("MF flag:%d\n\n\n\n", packet.ipflag.MF);
+}
 
-    // while(packet.ipflag.MF == 1){
-    //     readStatus = read(clientSocket, (struct Packet*)&packet, sizeof(packet));
-    //     printf("Version:%d\n", packet.version);
-    //     printf("HeaderLength:%d\n", packet.headerLength);
-    //     printf("TotalLength:%d\n", packet.totalLength);
-    //     printf("FragmentOffset:%d\n", packet.fragmentOffset);
-    //     printf("DF flag:%d\n", packet.ipflag.DF);
-    //     printf("MF flag:%d\n\n\n\n", packet.ipflag.MF);
-    // }
+int main(){
+
+    struct Packet packet;
+    // packet.data = (char*)calloc(200,sizeof(char));
+
+    int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
+
+    int clientSocket = connectSocket(serverSocket);
+    if(clientSocket < 0)
+        printf("%d",clientSocket);
+
+    int readStatus = recv(clientSocket, (struct Packet*)&packet, sizeof(packet), 0);
+
+    while(readStatus){
+        printFragmentedPackets(packet);
+        readStatus = recv(clientSocket, (struct Packet*)&packet, sizeof(packet), 0);
+    }
 
     close(clientSocket);
-    
     return 0;
 
 }
+

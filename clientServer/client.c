@@ -4,7 +4,13 @@
 #include<sys/types.h>
 #include<netinet/in.h>
 #include<unistd.h>    
-#include<string.h>     
+#include<string.h>  
+
+// char* getData();
+int connectSocket(int);
+struct Packet setHeader();
+struct Packet setFlag(struct Packet, int);
+
 
 struct IPFlag{
     int DF;
@@ -19,54 +25,68 @@ struct Packet{
     int fragmentOffset;
     // char* sourceAddress;
     // char* destinationAddress;
-    char *data;
+    char data[200];
 };
 
-int main(){
-
-    struct Packet packet;
-
-    packet.version = 4;
-    packet.headerLength = 20;
-    packet.data = (char*)calloc(20,sizeof(char));
-    scanf("%s",packet.data);
-    packet.totalLength = strlen(packet.data) + packet.headerLength;
-
-    int MTU = 30; 
-
-    int clientSocket ;  
-    clientSocket = socket(AF_INET, SOCK_STREAM, 0);
-
+int connectSocket(int clientSocket){
     struct sockaddr_in serverAddress;
     serverAddress.sin_family = AF_INET;
     serverAddress.sin_port = htons(8080);
     serverAddress.sin_addr.s_addr = INADDR_ANY;
 
-    int connectStatus = connect(clientSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress));
+    return connect(clientSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress));
+}
+
+// char* getData(){
+//     char data[200];
+//     // data = (char*)calloc(200,sizeof(char));
+//     scanf("%s",data);
+//     return data;
+// }
+
+struct Packet setHeader(struct Packet packet, int version, int headerLength, int fragmentOffset){
+    packet.version = 4;
+    packet.headerLength = 20;
+    // packet.data[200] = data;
+    packet.totalLength = strlen(packet.data) + packet.headerLength;
+    packet.fragmentOffset = fragmentOffset;
+    return packet;
+}
+
+struct Packet setFlag(struct Packet fragmentedPacket, int MTU){
+    if((fragmentedPacket.fragmentOffset+1)* (MTU - fragmentedPacket.headerLength) < fragmentedPacket.totalLength - fragmentedPacket.headerLength){
+        fragmentedPacket.ipflag.MF = 1;
+        fragmentedPacket.ipflag.DF = 0;
+    }
+    else{
+        fragmentedPacket.ipflag.DF = 1;
+        fragmentedPacket.ipflag.MF = 0;
+    }
+    return fragmentedPacket;
+}
+
+int main(){
+
+    struct Packet packet;
+    int MTU = 30;     
+
+    // packet.data = getData()
+    scanf("%s",packet.data);
+    packet = setHeader(packet, 4, 20, 0);
+
+    int clientSocket  = socket(AF_INET, SOCK_STREAM, 0);
+
+    int connectStatus = connectSocket(clientSocket);
     if(connectStatus < 0)
-        printf("Error connectiong the socket");
+        printf("%d\n", connectStatus);
 
     if(packet.totalLength > MTU){
         struct Packet fragmentedPacket;
         int fragOffset = 0;
-        for(int i = 0; i <packet.totalLength; i += (MTU - packet.headerLength)){
-            fragmentedPacket.version = packet.version;
-            fragmentedPacket.headerLength = packet.headerLength;
-            fragmentedPacket.totalLength = packet.totalLength;
-            fragmentedPacket.fragmentOffset = fragOffset++;
+        for(int i = 0; i < (packet.totalLength - packet.headerLength); i += (MTU - packet.headerLength)){
+            fragmentedPacket = setHeader(fragmentedPacket, packet.version, packet.headerLength, fragOffset++);
             strncpy(fragmentedPacket.data, packet.data+i, (MTU - packet.headerLength));
-            if((fragmentedPacket.fragmentOffset+1)* (MTU - packet.headerLength) < fragmentedPacket.totalLength - fragmentedPacket.headerLength){
-                fragmentedPacket.ipflag.MF = 1;
-                fragmentedPacket.ipflag.DF = 0;
-            }
-            else{
-                fragmentedPacket.ipflag.DF = 1;
-                fragmentedPacket.ipflag.MF = 0;
-            }
-
-
-            if(fragOffset >10)
-                break;
+            fragmentedPacket = setFlag(fragmentedPacket, MTU);
 
             send(clientSocket, (void *)&fragmentedPacket, sizeof(fragmentedPacket), 0);
         }
@@ -74,5 +94,8 @@ int main(){
         send(clientSocket, (void *)&packet, sizeof(packet), 0);
     }
 
+    close(clientSocket);
+
     return 0;
 }
+
