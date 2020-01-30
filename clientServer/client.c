@@ -8,11 +8,11 @@
 #include<math.h>
 #include<time.h>        //for srand function
 
-// char* getData();
 int connectSocket(int);
 struct Packet setHeader();
 struct Packet setFlag(struct Packet, int);
-
+struct Packet fragmentPacket(struct Packet, int, int, int);
+void shuffleAndSend(int, struct Packet*, int);
 
 struct IPFlag{
     int DF;
@@ -39,16 +39,44 @@ int connectSocket(int clientSocket){
     return connect(clientSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress));
 }
 
-// char* getData(){
-//     char data[200];
-//     // data = (char*)calloc(200,sizeof(char));
-//     scanf("%s",data);
-//     return data;
+
+// struct Packet* fragmentPacket(struct Packet packet, int MTU, int noOfFragments){
+//     struct Packet fragmentedPacket,fragmentedPackets[noOfFragments];
+//     int fragOffset = 0;
+//     int index = 0;
+
+//     for(int i = 0; i < (packet.totalLength - packet.headerLength); i += (MTU - packet.headerLength)){
+
+//         fragmentedPacket = setHeader(fragmentedPacket, packet.version, packet.headerLength, fragOffset++);
+//         strncpy(fragmentedPacket.data, packet.data+i, (MTU - packet.headerLength));
+//         fragmentedPacket = setFlag(fragmentedPacket, MTU);
+
+//         fragmentedPackets[index++] = fragmentedPacket;
+//     }
+//     return fragmentedPackets;
 // }
 
+struct Packet fragmentPacket(struct Packet packet, int fragOffset, int MTU, int startIndex){
+    struct Packet fragmentedPacket;
+    fragmentedPacket = setHeader(fragmentedPacket, packet.version, packet.headerLength, fragOffset++);
+    strncpy(fragmentedPacket.data, packet.data+startIndex, (MTU - packet.headerLength));
+    fragmentedPacket = setFlag(fragmentedPacket, MTU);
+    return fragmentedPacket;
+}
+
+void shuffleAndSend(int noOfFragments, struct Packet *fragmentedPackets, int clientSocket){
+    srand(time(NULL));
+    int index;
+    for(int j=0; j<noOfFragments; j++){
+        index = rand() % noOfFragments;
+        printf("%d\n",index);
+        send(clientSocket, (void *)&fragmentedPackets[index], sizeof(fragmentedPackets[index]), 0);
+    }
+}
+
 struct Packet setHeader(struct Packet packet, int version, int headerLength, int fragmentOffset){
-    packet.version = 4;
-    packet.headerLength = 20;
+    packet.version = version;
+    packet.headerLength = headerLength;
     // packet.data[200] = data;
     packet.totalLength = strlen(packet.data) + packet.headerLength;
     packet.fragmentOffset = fragmentOffset;
@@ -72,7 +100,6 @@ int main(){
     struct Packet packet;
     int MTU = 30;     
 
-    // packet.data = getData()
     scanf("%s",packet.data);
     packet = setHeader(packet, 4, 20, 0);
 
@@ -83,33 +110,19 @@ int main(){
         printf("%d\n", connectStatus);
 
     if(packet.totalLength > MTU){
-
         int noOfFragments = (int)ceil((float)(packet.totalLength - packet.headerLength)/(float)(MTU - packet.headerLength));
-        struct Packet fragmentedPacket,fragmentedPackets[noOfFragments];
+        struct Packet fragmentedPackets[noOfFragments];
         int fragOffset = 0;
         int index = 0;
 
-        for(int i = 0; i < (packet.totalLength - packet.headerLength); i += (MTU - packet.headerLength)){
-            fragmentedPacket = setHeader(fragmentedPacket, packet.version, packet.headerLength, fragOffset++);
-            strncpy(fragmentedPacket.data, packet.data+i, (MTU - packet.headerLength));
-            fragmentedPacket = setFlag(fragmentedPacket, MTU);
-
-            fragmentedPackets[index++] = fragmentedPacket;
-        }
-
-        //shuffling Fragments
-        srand(time(NULL));
-        for(int j=0; j<noOfFragments; j++){
-            index = rand() % noOfFragments;
-            send(clientSocket, (void *)&fragmentedPackets[index], sizeof(fragmentedPackets[index]), 0);
-        }
+        for(int i = 0; i < (packet.totalLength - packet.headerLength); i += (MTU - packet.headerLength))
+            fragmentedPackets[index++] = fragmentPacket(packet, fragOffset++, MTU, i);
+        shuffleAndSend(noOfFragments, fragmentedPackets, clientSocket);
     }
-    else{
+    else
         send(clientSocket, (void *)&packet, sizeof(packet), 0);
-    }
 
     close(clientSocket);
-
     return 0;
 }
 

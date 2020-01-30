@@ -5,15 +5,15 @@
 #include<netinet/in.h>
 #include<unistd.h>
 #include<arpa/inet.h>
+#include<string.h>
 
 int connectSocket(int);
-// void printFragmentedPackets(struct Packet);
+
 
 struct IPFlag{
     int DF;
     int MF;
 };
-
 
 struct Packet{
     int version; 
@@ -25,7 +25,6 @@ struct Packet{
     // char* destinationAddress;
     char data[200];
 };
-
 
 int connectSocket(int serverSocket){
     struct sockaddr_in serverAddress;
@@ -44,33 +43,60 @@ int connectSocket(int serverSocket){
     return accept(serverSocket, (struct sockaddr*)&serverAddress, (socklen_t*)&serverAddress);
 }
 
+struct Packet setHeader(struct Packet packet, char *data){
+    struct Packet defragmentedPacket;
+    defragmentedPacket.version = packet.version;
+    defragmentedPacket.headerLength = packet.headerLength;
+    defragmentedPacket.totalLength = strlen(data) + packet.headerLength;
+    defragmentedPacket.fragmentOffset = 0;
+    defragmentedPacket.ipflag.DF = 0;
+    defragmentedPacket.ipflag.MF = 0;
+    strcpy(defragmentedPacket.data,data);
+    return defragmentedPacket;
+}
 
-void printFragmentedPackets(struct Packet packet){
-    printf("Version:%d\n", packet.version);
-    printf("HeaderLength:%d\n", packet.headerLength);
-    printf("TotalLength:%d\n", packet.totalLength);
-    printf("FragmentOffset:%d\n", packet.fragmentOffset);
-    printf("Data:%s\n",packet.data);
-    printf("DF flag:%d\n", packet.ipflag.DF);
-    printf("MF flag:%d\n\n\n\n", packet.ipflag.MF);
+void printDefragmentedPacket(struct Packet defragmentedPacket){
+    printf("version:%d\n", defragmentedPacket.version);
+    printf("headerLength:%d\n", defragmentedPacket.headerLength);
+    printf("DF:%d\n", defragmentedPacket.ipflag.DF);
+    printf("MF:%d\n", defragmentedPacket.ipflag.MF);
+    printf("fragmentOffset:%d\n", defragmentedPacket.fragmentOffset);
+    printf("Data:%s\n", defragmentedPacket.data);
+    printf("totalLength:%d\n", defragmentedPacket.totalLength);
 }
 
 int main(){
 
     struct Packet packet;
-    // packet.data = (char*)calloc(200,sizeof(char));
+    struct Packet defragmentedPacket;
 
     int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
-
     int clientSocket = connectSocket(serverSocket);
     if(clientSocket < 0)
         printf("%d",clientSocket);
 
     int readStatus = recv(clientSocket, (struct Packet*)&packet, sizeof(packet), 0);
+    int packetCount = 0;
 
+    // Drops, if out of order
+
+    int flag;
     while(readStatus){
-        printFragmentedPackets(packet);
+        if(packetCount == packet.fragmentOffset){
+            strcat(defragmentedPacket.data, packet.data);
+            packetCount++;
+            flag = 1;
+        }else{
+            printf("Packets out of order :)\n");
+            flag = 0;
+            break;
+        }
         readStatus = recv(clientSocket, (struct Packet*)&packet, sizeof(packet), 0);
+    }
+
+    if(flag == 1){
+        defragmentedPacket = setHeader(packet, defragmentedPacket.data);
+        printDefragmentedPacket(defragmentedPacket);
     }
 
     close(clientSocket);
