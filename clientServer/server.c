@@ -30,6 +30,8 @@ struct Packet{
     char data[200];
 };
 
+// struct Packet defragmentedPacket;
+
 int connectSocket(int serverSocket){
     struct sockaddr_in serverAddress;
     serverAddress.sin_family = AF_INET;             //ipv4
@@ -115,47 +117,47 @@ struct Packet deQueue(struct Packet *bufferQueue, int rear, int front){
 
 int isDestinedFragment(struct Packet fragment){
     if(fragment.fragmentOffset == expectedFragment){
-        printf("%d is a destinedFragment\n",fragment.fragmentOffset);
+        // printf("%d is a destinedFragment\n",fragment.fragmentOffset);
         return 1;
     }
-    printf("%d is not a destinedFragment\n",fragment.fragmentOffset);
+    // printf("%d is not a destinedFragment\n",fragment.fragmentOffset);
     return 0;
 }
 
-int deFragment(struct Packet defragmentedPacket, struct Packet fragment){
-    printf("defragmenting %d\n",fragment.fragmentOffset);
+struct Packet deFragment(struct Packet defragmentedPacket, struct Packet fragment){
+    // printf("defragmenting %d\n",fragment.fragmentOffset);
     strcat(defragmentedPacket.data, fragment.data);
-    printf("defragmnted packet data:%s\n", defragmentedPacket.data);
+    // printf("defragmnted packet data:%s\n", defragmentedPacket.data);
     expectedFragment++;
-    return expectedFragment;
+    return defragmentedPacket;
 }
 
 int isNextFragmentInDS(struct Packet *processedFragment, int expectedFragment){
     for(int i=0; i<=processedFragmentCount; i++)
         if(processedFragment[i].fragmentOffset == expectedFragment){
-            printf("%d is in DS\n",expectedFragment);
+            // printf("%d is in DS\n",expectedFragment);
             return i;
         }
-    printf("%d is not in DS\n",expectedFragment);   
+    // printf("%d is not in DS\n",expectedFragment);   
     return -1;
 }
 
 int yetToDeFragment(struct Packet fragment){
     if(fragment.fragmentOffset > expectedFragment){
-        printf("%d is yet to defragment\n",fragment.fragmentOffset);
+        // printf("%d is yet to defragment\n",fragment.fragmentOffset);
         return 1;
     }
-    printf("%d is already defragmented\n",fragment.fragmentOffset);
+    // printf("%d is already defragmented\n",fragment.fragmentOffset);
     return 0;
 }
 
 int isDuplicate(struct Packet *processedFragment, struct Packet fragment){
     for(int i=0; i<=processedFragmentCount; i++)
         if(processedFragment[i].fragmentOffset == fragment.fragmentOffset){
-            printf("%d is a duplicate fragment\n",fragment.fragmentOffset);
+            // printf("%d is a duplicate fragment\n",fragment.fragmentOffset);
             return 1;
         }
-    printf("%d is not a duplicate fragment\n",fragment.fragmentOffset);
+    // printf("%d is not a duplicate fragment\n",fragment.fragmentOffset);
     return 0;
 }
 
@@ -218,27 +220,22 @@ int main(){
 
     while(readStatus){
 
-        printf("\nReading %d\n", fragment.fragmentOffset);
-
         // enQueue(fragment, bufferQueue, rear, front);     //since..sender and receiver are at different speed
         // fragment = deQueue(bufferQueue, rear, front);
         if(isDestinedFragment(fragment)){
-            expectedFragment = deFragment(defragmentedPacket, fragment);
+            defragmentedPacket = deFragment(defragmentedPacket, fragment);
             int index = isNextFragmentInDS(processedFragment, expectedFragment);
             while(index >= 0){
-                expectedFragment = deFragment(defragmentedPacket, processedFragment[index]);
+                defragmentedPacket = deFragment(defragmentedPacket, processedFragment[index]);
                 processedFragment[index].fragmentOffset = -1;
                 index = isNextFragmentInDS(processedFragment, expectedFragment);
             }
-        }else{
+        }else
             storeInDS(processedFragment, fragment);
-        }
         
         readStatus = recv(clientSocket, (struct Packet*)&fragment, sizeof(fragment), 0);
 
     }
-
-    printf("\n\nResult%s\n", defragmentedPacket.data);
 
     defragmentedPacket = setHeader(fragment, defragmentedPacket.data);
     printDefragmentedPacket(defragmentedPacket);
