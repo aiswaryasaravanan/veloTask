@@ -8,6 +8,18 @@
 #include<string.h>
 
 int connectSocket(int);
+struct Packet setHeader(struct Packet, char*);
+void printDefragmentedPacket(struct Packet);
+int isFull(struct Packet*, int, int);
+int isEmpty(struct Packet*, int, int);
+int enQueue(struct Packet, struct Packet*, int, int);
+struct Packet deQueue(struct Packet*, int, int);
+int isDestinedFragment(struct Packet);
+struct Packet deFragment(struct Packet defragmentedPacket, struct Packet fragment);
+int isNextFragmentInDS(struct Packet*, int);
+int yetToDeFragment(struct Packet);
+int isDuplicate(struct Packet*, struct Packet);
+void storeInDS(struct Packet*, struct Packet);
 
 int rear = -1;
 int front = 0;
@@ -29,8 +41,6 @@ struct Packet{
     // char* destinationAddress;
     char data[200];
 };
-
-// struct Packet defragmentedPacket;
 
 int connectSocket(int serverSocket){
     struct sockaddr_in serverAddress;
@@ -98,13 +108,13 @@ int isEmpty(struct Packet *bufferQueue, int rear, int front){
     return 0;
 }
 
-void enQueue(struct Packet fragment, struct Packet *bufferQueue, int rear, int front){
+int enQueue(struct Packet fragment, struct Packet *bufferQueue, int rear, int front){
     if(isFull(bufferQueue, rear, front)){
         printf("Buffer size exceeds...Packets dropped...\n");
         exit(0);
     }
     bufferQueue[(++rear)%5] = fragment;
-    // return rear;
+    return rear;
 }
 
 struct Packet deQueue(struct Packet *bufferQueue, int rear, int front){
@@ -117,17 +127,17 @@ struct Packet deQueue(struct Packet *bufferQueue, int rear, int front){
 
 int isDestinedFragment(struct Packet fragment){
     if(fragment.fragmentOffset == expectedFragment){
-        // printf("%d is a destinedFragment\n",fragment.fragmentOffset);
+        printf("%d is a destinedFragment\n",fragment.fragmentOffset);
         return 1;
     }
-    // printf("%d is not a destinedFragment\n",fragment.fragmentOffset);
+    printf("%d is not a destinedFragment\n",fragment.fragmentOffset);
     return 0;
 }
 
 struct Packet deFragment(struct Packet defragmentedPacket, struct Packet fragment){
-    // printf("defragmenting %d\n",fragment.fragmentOffset);
+    printf("defragmenting %d\n",fragment.fragmentOffset);
     strcat(defragmentedPacket.data, fragment.data);
-    // printf("defragmnted packet data:%s\n", defragmentedPacket.data);
+    printf("defragmnted packet data:%s\n", defragmentedPacket.data);
     expectedFragment++;
     return defragmentedPacket;
 }
@@ -135,29 +145,29 @@ struct Packet deFragment(struct Packet defragmentedPacket, struct Packet fragmen
 int isNextFragmentInDS(struct Packet *processedFragment, int expectedFragment){
     for(int i=0; i<=processedFragmentCount; i++)
         if(processedFragment[i].fragmentOffset == expectedFragment){
-            // printf("%d is in DS\n",expectedFragment);
+            printf("%d is in DS\n",expectedFragment);
             return i;
         }
-    // printf("%d is not in DS\n",expectedFragment);   
+    printf("%d is not in DS\n",expectedFragment);   
     return -1;
 }
 
 int yetToDeFragment(struct Packet fragment){
     if(fragment.fragmentOffset > expectedFragment){
-        // printf("%d is yet to defragment\n",fragment.fragmentOffset);
+        printf("%d is yet to defragment\n",fragment.fragmentOffset);
         return 1;
     }
-    // printf("%d is already defragmented\n",fragment.fragmentOffset);
+    printf("%d is already defragmented\n",fragment.fragmentOffset);
     return 0;
 }
 
 int isDuplicate(struct Packet *processedFragment, struct Packet fragment){
     for(int i=0; i<=processedFragmentCount; i++)
         if(processedFragment[i].fragmentOffset == fragment.fragmentOffset){
-            // printf("%d is a duplicate fragment\n",fragment.fragmentOffset);
+            printf("%d is a duplicate fragment\n",fragment.fragmentOffset);
             return 1;
         }
-    // printf("%d is not a duplicate fragment\n",fragment.fragmentOffset);
+    printf("%d is not a duplicate fragment\n",fragment.fragmentOffset);
     return 0;
 }
 
@@ -170,6 +180,7 @@ void storeInDS(struct Packet *processedFragment, struct Packet fragment){
                     return;
                 }
             processedFragment[++processedFragmentCount] = fragment;
+            printf("%d stored in DS\n", fragment.fragmentOffset);
         }
             
 }
@@ -204,7 +215,7 @@ int main(){
     //     }
     //     readStatus = recv(clientSocket, (struct Packet*)&packet, sizeof(packet), 0);
     // }
-
+ 
     // if(flag == 1){
     //     defragmentedPacket = setHeader(packet);
     //     printDefragmentedPacket(defragmentedPacket);
@@ -217,10 +228,9 @@ int main(){
     struct Packet processedFragment[5];
 
     int readStatus = recv(clientSocket, (struct Packet*)&fragment, sizeof(fragment), 0);
+    while(readStatus && ((int)strlen(defragmentedPacket.data))<(fragment.totalLength-fragment.headerLength)){
 
-    while(readStatus){
-
-        // enQueue(fragment, bufferQueue, rear, front);     //since..sender and receiver are at different speed
+        // rear = enQueue(fragment, bufferQueue, rear, front);     //since..sender and receiver are at different speed
         // fragment = deQueue(bufferQueue, rear, front);
         if(isDestinedFragment(fragment)){
             defragmentedPacket = deFragment(defragmentedPacket, fragment);
@@ -237,8 +247,10 @@ int main(){
 
     }
 
-    defragmentedPacket = setHeader(fragment, defragmentedPacket.data);
-    printDefragmentedPacket(defragmentedPacket);
+    // defragmentedPacket = setHeader(fragment, defragmentedPacket.data);
+    // printDefragmentedPacket(defragmentedPacket);
+
+    printf("\n%s\n", defragmentedPacket.data);
 
     close(clientSocket);
     return 0;
