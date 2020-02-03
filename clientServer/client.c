@@ -39,23 +39,6 @@ int connectSocket(int clientSocket){
     return connect(clientSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress));
 }
 
-
-// struct Packet* fragmentPacket(struct Packet packet, int MTU, int noOfFragments){
-//     struct Packet fragmentedPacket,fragmentedPackets[noOfFragments];
-//     int fragOffset = 0;
-//     int index = 0;
-
-//     for(int i = 0; i < (packet.totalLength - packet.headerLength); i += (MTU - packet.headerLength)){
-
-//         fragmentedPacket = setHeader(fragmentedPacket, packet.version, packet.headerLength, fragOffset++);
-//         strncpy(fragmentedPacket.data, packet.data+i, (MTU - packet.headerLength));
-//         fragmentedPacket = setFlag(fragmentedPacket, MTU);
-
-//         fragmentedPackets[index++] = fragmentedPacket;
-//     }
-//     return fragmentedPackets;
-// }
-
 struct Packet fragmentPacket(struct Packet packet, int fragOffset, int MTU, int startIndex){
     struct Packet fragmentedPacket;
     fragmentedPacket = setHeader(fragmentedPacket, packet.version, packet.headerLength, fragOffset++);
@@ -95,6 +78,8 @@ void shuffleAndSend(int noOfFragments, struct Packet *fragmentedPackets, int cli
         send(clientSocket, (void *)&fragmentedPackets[randPacket], sizeof(fragmentedPackets[randPacket]), 0);
     }
 }
+
+//To drop some packet..
 
 // void shuffleAndSend(int noOfFragments, struct Packet *fragmentedPackets, int clientSocket){
 //     srand(time(NULL));

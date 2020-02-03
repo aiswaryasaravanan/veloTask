@@ -45,8 +45,6 @@ int connectSocket(int serverSocket){
         printf("%d", listenStatus);
 
     return accept(serverSocket, (struct sockaddr*)&serverAddress, (socklen_t*)&serverAddress);
-    // return accept(serverSocket, NULL, NULL);
-
 }
 
 struct Packet setHeader(struct Packet fragment, char *data){
@@ -71,71 +69,19 @@ void printDefragmentedPacket(struct Packet defragmentedPacket){
     printf("totalLength:%d\n", defragmentedPacket.totalLength);
 }
 
-// int isOrder(struct Packet packet, struct Packet defragmentedPacket, int packetCount){
-//     if(packetCount == packet.fragmentOffset){
-//         strcat(defragmentedPacket.data, packet.data);
-//         packetCount++;
-//         return 1;
-//     }
-//     return 0;
-// }
-
-// struct Packet* shiftQueue(struct Packet bufferQueue[], int index){
-
-//     return bufferQueue;
-// }
-
-// int isInQueue(struct Packet bufferQueue[], int packetCount){
-//     int i;
-//     for(i=0;i<5;i++)
-//         if(bufferQueue[i].fragmentOffset == packetCount){
-//             bufferQueue = shiftQueue(bufferQueue,i);
-//             break;
-//         }
-//     if(i==5)
-//         return -1;
+// void printQueue(struct Packet *bufferQueue){
+//     if (rear >= front) 
+//         for (int i = front; i <= rear; i++) 
+//             printf("%d ",bufferQueue[i].fragmentOffset); 
 //     else
-//         return i;
-// }
-
-// int isOrder(int packetCount, struct Packet packet){
-//     if(packetCount == packet.fragmentOffset){
-//         return 1;
-//     }return 0;
-// }
-
-// void printQ(struct Packet* bufferQueue){
-//     for(int i=0;i<5;i++){
-//         printf("%d", bufferQueue[i].fragmentOffset);
+//     { 
+//         for (int i = front; i < 5; i++) 
+//             printf("%d ", bufferQueue[i].fragmentOffset); 
+  
+//         for (int i = 0; i <= rear; i++) 
+//             printf("%d ", bufferQueue[i].fragmentOffset); 
 //     }
 //     printf("\n");
-// }
-
-// int isDuplicate(struct Packet* bufferQueue, struct Packet packet, int *inOrder){
-//     int i;
-//     //whether used?
-//     // if(inOrder)
-//     //whether in buffre?
-//     for(i=0;i<5;i++){
-//         if(packet.fragmentOffset == bufferQueue[i].fragmentOffset)
-//             return i;
-//     }
-//     return -1;
-// }
-
-// void enqueuePacket(struct Packet *bufferQueue, struct Packet packet){
-//     int i;
-//     for(i=0; i<5; i++){
-//         if(bufferQueue[i].fragmentOffset == -1){
-//             bufferQueue[i] = packet;
-//             break;
-//         }
-//     }
-//     if(i == 5){
-//         printf("Packet Dropped..Since Queue is full\n");
-//         exit(0);
-//     }
-//     // return bufferQueue;
 // }
 
 int isFull(struct Packet *bufferQueue, int rear, int front){
@@ -152,48 +98,64 @@ int isEmpty(struct Packet *bufferQueue, int rear, int front){
 
 void enQueue(struct Packet fragment, struct Packet *bufferQueue, int rear, int front){
     if(isFull(bufferQueue, rear, front)){
-        printf("Buffer size exceeds...Packets dropped...");
+        printf("Buffer size exceeds...Packets dropped...\n");
         exit(0);
     }
     bufferQueue[(++rear)%5] = fragment;
+    // return rear;
 }
 
 struct Packet deQueue(struct Packet *bufferQueue, int rear, int front){
     if(isEmpty(bufferQueue, rear, front)){
-        printf("Nothing to read...");
+        printf("Nothing to read...\n");
         exit(0);
     }
     return bufferQueue[(front++)%5];
 }
 
 int isDestinedFragment(struct Packet fragment){
-    if(fragment.fragmentOffset == expectedFragment)
+    if(fragment.fragmentOffset == expectedFragment){
+        printf("%d is a destinedFragment\n",fragment.fragmentOffset);
         return 1;
+    }
+    printf("%d is not a destinedFragment\n",fragment.fragmentOffset);
     return 0;
 }
 
-void deFragment(struct Packet defragmentedPacket, struct Packet fragment){
+int deFragment(struct Packet defragmentedPacket, struct Packet fragment){
+    printf("defragmenting %d\n",fragment.fragmentOffset);
     strcat(defragmentedPacket.data, fragment.data);
+    printf("defragmnted packet data:%s\n", defragmentedPacket.data);
     expectedFragment++;
+    return expectedFragment;
 }
 
 int isNextFragmentInDS(struct Packet *processedFragment, int expectedFragment){
     for(int i=0; i<=processedFragmentCount; i++)
-        if(processedFragment[i].fragmentOffset == expectedFragment)
+        if(processedFragment[i].fragmentOffset == expectedFragment){
+            printf("%d is in DS\n",expectedFragment);
             return i;
+        }
+    printf("%d is not in DS\n",expectedFragment);   
     return -1;
 }
 
 int yetToDeFragment(struct Packet fragment){
-    if(fragment.fragmentOffset > expectedFragment)
+    if(fragment.fragmentOffset > expectedFragment){
+        printf("%d is yet to defragment\n",fragment.fragmentOffset);
         return 1;
+    }
+    printf("%d is already defragmented\n",fragment.fragmentOffset);
     return 0;
 }
 
 int isDuplicate(struct Packet *processedFragment, struct Packet fragment){
     for(int i=0; i<=processedFragmentCount; i++)
-        if(processedFragment[i].fragmentOffset == fragment.fragmentOffset)
+        if(processedFragment[i].fragmentOffset == fragment.fragmentOffset){
+            printf("%d is a duplicate fragment\n",fragment.fragmentOffset);
             return 1;
+        }
+    printf("%d is not a duplicate fragment\n",fragment.fragmentOffset);
     return 0;
 }
 
@@ -215,13 +177,12 @@ int main(){
     struct Packet fragment;
     struct Packet defragmentedPacket;
 
-    strcpy(defragmentedPacket.data,"");
+    strcat(defragmentedPacket.data,"");
 
     int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
     int clientSocket = connectSocket(serverSocket);
     if(clientSocket < 0)
         printf("%d",clientSocket);
-
 
     // Drops, if out of order...
 
@@ -248,7 +209,7 @@ int main(){
     // }
 
 
-     //Re-ordering.. when received..
+    //Re-ordering.. when received..
 
     struct Packet bufferQueue[5];
     struct Packet processedFragment[5];
@@ -256,132 +217,34 @@ int main(){
     int readStatus = recv(clientSocket, (struct Packet*)&fragment, sizeof(fragment), 0);
 
     while(readStatus){
-        enQueue(fragment, bufferQueue, rear, front);
-        fragment = deQueue(bufferQueue, rear, front);
+
+        printf("\nReading %d\n", fragment.fragmentOffset);
+
+        // enQueue(fragment, bufferQueue, rear, front);     //since..sender and receiver are at different speed
+        // fragment = deQueue(bufferQueue, rear, front);
         if(isDestinedFragment(fragment)){
-            deFragment(defragmentedPacket, fragment);
+            expectedFragment = deFragment(defragmentedPacket, fragment);
             int index = isNextFragmentInDS(processedFragment, expectedFragment);
             while(index >= 0){
-                deFragment(defragmentedPacket, processedFragment[index]);
+                expectedFragment = deFragment(defragmentedPacket, processedFragment[index]);
                 processedFragment[index].fragmentOffset = -1;
                 index = isNextFragmentInDS(processedFragment, expectedFragment);
             }
         }else{
             storeInDS(processedFragment, fragment);
         }
-        int readStatus = recv(clientSocket, (struct Packet*)&fragment, sizeof(fragment), 0);
+        
+        readStatus = recv(clientSocket, (struct Packet*)&fragment, sizeof(fragment), 0);
+
     }
 
-    printf("\n\n%s\n", defragmentedPacket.data);
+    printf("\n\nResult%s\n", defragmentedPacket.data);
+
+    defragmentedPacket = setHeader(fragment, defragmentedPacket.data);
+    printDefragmentedPacket(defragmentedPacket);
 
     close(clientSocket);
     return 0;
 
 }
 
-    //Re-ordering.. when received
-
-    // struct Packet bufferQueue[5];
-    // for(int i=0; i<5; i++)
-    //     bufferQueue[i].fragmentOffset = -1;
-    // int noOfFragments = (int)ceil((float)(fragment.totalLength - fragment.headerLength)/(float)(MTU - fragment.headerLength));
-    // bool processedFragmentList[noOfFragments];
-    // for(int i=0; i<noOfFragments; i++)
-    //     processedFragmentList[i] = false;
-    // int hitIndex = -1;
-    // int queueIndex = 0;
-
-    // while(readStatus){
-    //     if(isProcessed(packet, bufferQueue)){
-    //         int index = isDuplicate(bufferQueue, packet, processedFragments);
-    //         if(index != -1 ){
-    //             if(packet.fragmentOffset == packetCount){
-    //                 strcat(defragmentedPacket.data, bufferQueue[index].data);
-    //                 inOrder[packetCount]=PacketCount;
-    //                 bufferQueue[index].fragmentOffset = -1;
-    //                 packetCount++;
-    //             }
-    //         }else{
-    //             enqueuePacket(bufferQueue,packet);
-    //         }
-    //     }
-    //     printQ(bufferQueue);
-    //     readStatus = recv(clientSocket, (struct Packet*)&packet, sizeof(packet), 0);
-    // }
-
-
-
-    // int payloadSize = packet.totalLength - packet.headerLength;
-    // struct Packet bufferQueue[5];
-    // bufferQueue = (struct Packet*)calloc(10,sizeof(struct Packet));
-    // int queueIndex = 0;
-    // int hitIndex = -1;
-
-    // while(readStatus){
-    //     // printFragmentedPackets(packet);
-    //     if(packetCount == packet.fragmentOffset){
-    //         strcat(defragmentedPacket.data, packet.data);
-    //         printf("%s\n", defragmentedPacket.data);
-    //         packetCount++;
-    //     }else{
-    //         if((hitIndex = (isInQueue(bufferQueue, packetCount)))){
-    //             strcat(defragmentedPacket.data, bufferQueue[hitIndex].data);
-    //             printf("%s\n", defragmentedPacket.data);
-    //             packetCount++;
-    //             bufferQueue[hitIndex] = packet;
-    //         }else{
-    //             bufferQueue[queueIndex++] = packet;
-    //         }
-    //     }
-    //     readStatus = recv(clientSocket, (struct Packet*)&packet, sizeof(packet), 0);
-    // }
-
-    // while(strlen(defragmentedPacket.data) < payloadSize){
-    //     if((hitIndex = (isInQueue(bufferQueue, packetCount)))){
-    //         strcat(defragmentedPacket.data, bufferQueue[hitIndex].data);
-    //         packetCount++;
-    //     }else{
-    //         break;
-    //     }
-    // }
-
-
-
-
-
-    // while(readStatus){
-    //     if(isOrder(packetCount, packet)){
-    //         strcat(defragmentedPacket.data, packet.data);
-    //         packetCount++;
-    //     }else{
-    //         hitIndex = isInQueue(bufferQueue, packetCount);
-    //         if(hitIndex > 0){
-    //             strcat(defragmentedPacket.data, bufferQueue[hitIndex].data);
-    //             packetCount++;
-    //             bufferQueue[hitIndex] = packet;
-    //         }else{
-    //             if(isDuplicate(bufferQueue, packet) == 0)
-    //                 bufferQueue[queueIndex++] = packet;
-    //         }
-    //     }
-
-    //     printQ(bufferQueue);
-
-    //     readStatus = recv(clientSocket, (struct Packet*)&packet, sizeof(packet), 0);
-    // }
-
-
-        // if(isOrder(packetCount, packet)){
-        //     strcat(defragmentedPacket.data, packet.data);
-        //     packetCount++;
-        // }else{
-        //     hitIndex = isInQueue(bufferQueue, packetCount);
-        //     if(hitIndex > 0){
-        //         strcat(defragmentedPacket.data, bufferQueue[hitIndex].data);
-        //         packetCount++;
-        //         bufferQueue[hitIndex] = packet;
-        //     }else{
-        //         if(isDuplicate(bufferQueue, packet) == 0)
-        //             bufferQueue[queueIndex++] = packet;
-        //     }
-        // }
