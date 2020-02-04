@@ -31,7 +31,7 @@ typedef struct{
 }Packet;
 
 int initServer(int);
-void setHeader(Packet, Packet);
+Packet setHeader(Packet, Packet);
 void printDefragmentedPacket(Packet);
 int isFull(Packet*, int, int);
 int isEmpty(Packet*, int, int);
@@ -46,6 +46,8 @@ void storeInDS(Packet*, Packet);
 
 //to connect and accept the socket connection with client
 int initServer(int serverSocket){
+    serverSocket = socket(AF_INET, SOCK_STREAM, 0);
+
     struct sockaddr_in serverAddress;
     serverAddress.sin_family = AF_INET;             //ipv4
     serverAddress.sin_addr.s_addr = INADDR_ANY;     
@@ -59,28 +61,31 @@ int initServer(int serverSocket){
     if(listenStatus < 0)                            //backlog queue size=5(maximum no. of connection it can wait for)
         printf("%d", listenStatus);
 
-    return accept(serverSocket, (struct sockaddr*)&serverAddress, (socklen_t*)&serverAddress);
+    int clientSocket = accept(serverSocket, (struct sockaddr*)&serverAddress, (socklen_t*)&serverAddress);
+    if(clientSocket < 0){
+        printf("%d",clientSocket);
+        exit(0);
+    }return clientSocket;
 }
 
-// Packet setHeader(Packet fragment, char *data){
-//     Packet defragmentedPacket;
-//     defragmentedPacket.version = fragment.version;
-//     defragmentedPacket.headerLength = fragment.headerLength;
-//     defragmentedPacket.totalLength = fragment.totalLength;
-//     defragmentedPacket.fragmentOffset = 0;
-//     defragmentedPacket.ipflag.DF = 0;
-//     defragmentedPacket.ipflag.MF = 0;
-//     strcpy(defragmentedPacket.data,data);
-//     return defragmentedPacket;
+// void setHeader(Packet deFragmentedPacket, Packet fragment){
+//     deFragmentedPacket.version = fragment.version;
+//     deFragmentedPacket.headerLength = fragment.headerLength;
+//     deFragmentedPacket.totalLength = fragment.totalLength;
+//     deFragmentedPacket.fragmentOffset = 0;
+//     deFragmentedPacket.ipflag.DF = 0;
+//     deFragmentedPacket.ipflag.MF = 0;
 // }
 
-void setHeader(Packet deFragmentedPacket, Packet fragment){
-    deFragmentedPacket.version = fragment.version;
-    deFragmentedPacket.headerLength = fragment.headerLength;
-    deFragmentedPacket.totalLength = fragment.totalLength;
-    deFragmentedPacket.fragmentOffset = 0;
-    deFragmentedPacket.ipflag.DF = 0;
-    deFragmentedPacket.ipflag.MF = 0;
+Packet setHeader(Packet defragmentedPacket, Packet fragment){
+    defragmentedPacket.version = fragment.version;
+    defragmentedPacket.headerLength = fragment.headerLength;
+    defragmentedPacket.totalLength = fragment.totalLength;
+    defragmentedPacket.fragmentOffset = 0;
+    defragmentedPacket.ipflag.DF = 0;
+    defragmentedPacket.ipflag.MF = 0;
+    // strcpy(defragmentedPacket.data,data);
+    return defragmentedPacket;
 }
 
 //to print the final defragmented packet
@@ -216,10 +221,9 @@ int main(){
 
     strcat(defragmentedPacket.data,"");
 
-    int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
+    // int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
+    int serverSocket = 0;
     int clientSocket = initServer(serverSocket);
-    if(clientSocket < 0)
-        printf("%d",clientSocket);
 
     //Re-ordering.. when received..
 
@@ -228,7 +232,6 @@ int main(){
 
     int readStatus = recv(clientSocket, (struct Packet*)&fragment, sizeof(fragment), 0);
     while(readStatus && ((int)strlen(defragmentedPacket.data))<(fragment.totalLength-fragment.headerLength)){       //checking MF :(
-
         // rear = enQueue(fragment, bufferQueue, rear, front);     //since..sender and receiver are at different speed
         // fragment = deQueue(bufferQueue, rear, front);
         if(isDestinedFragment(fragment)){
@@ -246,7 +249,7 @@ int main(){
 
     }
 
-    setHeader(defragmentedPacket, fragment);
+    defragmentedPacket = setHeader(defragmentedPacket, fragment);
     printDefragmentedPacket(defragmentedPacket);
 
     close(clientSocket);

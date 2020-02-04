@@ -40,12 +40,20 @@ void shuffleAndSend(int, Packet*, int);
 
 //connect with server socket
 int initClient(int clientSocket){
+    clientSocket  = socket(AF_INET, SOCK_STREAM, 0);
+
     struct sockaddr_in serverAddress;
     serverAddress.sin_family = AF_INET;
     serverAddress.sin_port = htons(8080);
     serverAddress.sin_addr.s_addr = INADDR_ANY;
 
-    return connect(clientSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress));
+    int connectStatus = connect(clientSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress));
+    if(connectStatus < 0){
+        printf("%d\n", connectStatus);
+        exit(0);
+    }
+    return clientSocket;
+    
 }
 
 //cutting down the packet data into fragments as per MTU value using strncpy
@@ -140,11 +148,11 @@ int main(){
     Packet packet;
     Packet fragment;
 
-    int clientSocket  = socket(AF_INET, SOCK_STREAM, 0);
+    // int clientSocket  = socket(AF_INET, SOCK_STREAM, 0);
+    int clientSocket = 0;
     
-    int connectStatus = initClient(clientSocket);
-    if(connectStatus < 0)
-        printf("%d\n", connectStatus);
+    clientSocket = initClient(clientSocket);
+
 
     scanf("%s",packet.data);
     packet = setHeader(packet, 0, strlen(packet.data)); 
@@ -155,8 +163,8 @@ int main(){
         int fragOffset = 0;
         int index = 0;
 
-        for(int i = 0; i < (packet.totalLength - packet.headerLength); i += (MTU - packet.headerLength))
-            fragmentedPackets[index++] = fragmentPacket(packet, fragOffset++, i);
+        for(int i = 0; i < (packet.totalLength - packet.headerLength); i += (MTU - packet.headerLength),fragOffset++)
+            fragmentedPackets[fragOffset] = fragmentPacket(packet, fragOffset, i);
         shuffleAndSend(noOfFragments, fragmentedPackets, clientSocket);
     }
     else
