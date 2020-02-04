@@ -1,48 +1,51 @@
-#include<stdio.h>
-#include<stdlib.h>
-#include<sys/socket.h>
-#include<sys/types.h>
-#include<netinet/in.h>
-#include<unistd.h>
-#include<arpa/inet.h>
-#include<string.h>
+//Receiver who defragment the fragments
 
-int connectSocket(int);
-struct Packet setHeader(struct Packet, char*);
-void printDefragmentedPacket(struct Packet);
-int isFull(struct Packet*, int, int);
-int isEmpty(struct Packet*, int, int);
-int enQueue(struct Packet, struct Packet*, int, int);
-struct Packet deQueue(struct Packet*, int, int);
-int isDestinedFragment(struct Packet);
-struct Packet deFragment(struct Packet defragmentedPacket, struct Packet fragment);
-int isNextFragmentInDS(struct Packet*, int);
-int yetToDeFragment(struct Packet);
-int isDuplicate(struct Packet*, struct Packet);
-void storeInDS(struct Packet*, struct Packet);
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <netinet/in.h>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <string.h>
 
 int rear = -1;
 int front = 0;
 int expectedFragment = 0;
 int processedFragmentCount = -1;
 
-struct IPFlag{
+typedef struct{
     int DF;
     int MF;
-};
+}IPFlag;
 
-struct Packet{
+typedef struct{
     int version; 
     int headerLength;
     int totalLength;
-    struct IPFlag ipflag;
+    IPFlag ipflag;
     int fragmentOffset;
     // char* sourceAddress;
     // char* destinationAddress;
     char data[200];
-};
+}Packet;
 
-int connectSocket(int serverSocket){
+int initServer(int);
+void setHeader(Packet, Packet);
+void printDefragmentedPacket(Packet);
+int isFull(Packet*, int, int);
+int isEmpty(Packet*, int, int);
+int enQueue(Packet, Packet*, int, int);
+Packet deQueue(Packet*, int, int);
+int isDestinedFragment(Packet);
+Packet deFragment(Packet defragmentedPacket, Packet fragment);
+int isNextFragmentInDS(Packet*, int);
+int yetToDeFragment(Packet);
+int isDuplicate(Packet*, Packet);
+void storeInDS(Packet*, Packet);
+
+//to connect and accept the socket connection with client
+int initServer(int serverSocket){
     struct sockaddr_in serverAddress;
     serverAddress.sin_family = AF_INET;             //ipv4
     serverAddress.sin_addr.s_addr = INADDR_ANY;     
@@ -59,26 +62,37 @@ int connectSocket(int serverSocket){
     return accept(serverSocket, (struct sockaddr*)&serverAddress, (socklen_t*)&serverAddress);
 }
 
-struct Packet setHeader(struct Packet fragment, char *data){
-    struct Packet defragmentedPacket;
-    defragmentedPacket.version = fragment.version;
-    defragmentedPacket.headerLength = fragment.headerLength;
-    defragmentedPacket.totalLength = fragment.totalLength;
-    defragmentedPacket.fragmentOffset = 0;
-    defragmentedPacket.ipflag.DF = 0;
-    defragmentedPacket.ipflag.MF = 0;
-    strcpy(defragmentedPacket.data,data);
-    return defragmentedPacket;
+// Packet setHeader(Packet fragment, char *data){
+//     Packet defragmentedPacket;
+//     defragmentedPacket.version = fragment.version;
+//     defragmentedPacket.headerLength = fragment.headerLength;
+//     defragmentedPacket.totalLength = fragment.totalLength;
+//     defragmentedPacket.fragmentOffset = 0;
+//     defragmentedPacket.ipflag.DF = 0;
+//     defragmentedPacket.ipflag.MF = 0;
+//     strcpy(defragmentedPacket.data,data);
+//     return defragmentedPacket;
+// }
+
+void setHeader(Packet deFragmentedPacket, Packet fragment){
+    deFragmentedPacket.version = fragment.version;
+    deFragmentedPacket.headerLength = fragment.headerLength;
+    deFragmentedPacket.totalLength = fragment.totalLength;
+    deFragmentedPacket.fragmentOffset = 0;
+    deFragmentedPacket.ipflag.DF = 0;
+    deFragmentedPacket.ipflag.MF = 0;
 }
 
-void printDefragmentedPacket(struct Packet defragmentedPacket){
-    printf("version:%d\n", defragmentedPacket.version);
+//to print the final defragmented packet
+void printDefragmentedPacket(Packet defragmentedPacket){
+    printf("\n\nversion:%d\t", defragmentedPacket.version);
+    printf("fragmentOffset:%d\t", defragmentedPacket.fragmentOffset);
     printf("headerLength:%d\n", defragmentedPacket.headerLength);
-    printf("DF:%d\n", defragmentedPacket.ipflag.DF);
-    printf("MF:%d\n", defragmentedPacket.ipflag.MF);
-    printf("fragmentOffset:%d\n", defragmentedPacket.fragmentOffset);
-    printf("Data:%s\n", defragmentedPacket.data);
+    printf("Data:%s\t\t", defragmentedPacket.data);
     printf("totalLength:%d\n", defragmentedPacket.totalLength);
+    printf("DF:%d\t", defragmentedPacket.ipflag.DF);
+    printf("MF:%d\n", defragmentedPacket.ipflag.MF);
+    
 }
 
 // void printQueue(struct Packet *bufferQueue){
@@ -96,19 +110,23 @@ void printDefragmentedPacket(struct Packet defragmentedPacket){
 //     printf("\n");
 // }
 
-int isFull(struct Packet *bufferQueue, int rear, int front){
+
+//verify the bufferSize at receiver side.. since the speed at which the sender is sending 
+// and the speed at which the receiver is receiving differs...
+int isFull(Packet *bufferQueue, int rear, int front){
     if((rear-front+1) == 5)
         return 1;
     return 0;
 }
 
-int isEmpty(struct Packet *bufferQueue, int rear, int front){
+int isEmpty(Packet *bufferQueue, int rear, int front){
     if((rear-front+1) == 0)
         return 1;
     return 0;
 }
 
-int enQueue(struct Packet fragment, struct Packet *bufferQueue, int rear, int front){
+//Enqueue the fragment into the buffer(from the socket) which will later be used by the receiver
+int enQueue(Packet fragment, Packet *bufferQueue, int rear, int front){
     if(isFull(bufferQueue, rear, front)){
         printf("Buffer size exceeds...Packets dropped...\n");
         exit(0);
@@ -117,7 +135,7 @@ int enQueue(struct Packet fragment, struct Packet *bufferQueue, int rear, int fr
     return rear;
 }
 
-struct Packet deQueue(struct Packet *bufferQueue, int rear, int front){
+Packet deQueue(Packet *bufferQueue, int rear, int front){
     if(isEmpty(bufferQueue, rear, front)){
         printf("Nothing to read...\n");
         exit(0);
@@ -125,7 +143,8 @@ struct Packet deQueue(struct Packet *bufferQueue, int rear, int front){
     return bufferQueue[(front++)%5];
 }
 
-int isDestinedFragment(struct Packet fragment){
+//check whether the fragment is the required fragment
+int isDestinedFragment(Packet fragment){
     if(fragment.fragmentOffset == expectedFragment){
         printf("%d is a destinedFragment\n",fragment.fragmentOffset);
         return 1;
@@ -134,7 +153,8 @@ int isDestinedFragment(struct Packet fragment){
     return 0;
 }
 
-struct Packet deFragment(struct Packet defragmentedPacket, struct Packet fragment){
+//This will append the fragment data to the final defragmented packet's data
+Packet deFragment(Packet defragmentedPacket, Packet fragment){
     printf("defragmenting %d\n",fragment.fragmentOffset);
     strcat(defragmentedPacket.data, fragment.data);
     printf("defragmnted packet data:%s\n", defragmentedPacket.data);
@@ -142,7 +162,7 @@ struct Packet deFragment(struct Packet defragmentedPacket, struct Packet fragmen
     return defragmentedPacket;
 }
 
-int isNextFragmentInDS(struct Packet *processedFragment, int expectedFragment){
+int isNextFragmentInDS(Packet *processedFragment, int expectedFragment){
     for(int i=0; i<=processedFragmentCount; i++)
         if(processedFragment[i].fragmentOffset == expectedFragment){
             printf("%d is in DS\n",expectedFragment);
@@ -152,7 +172,8 @@ int isNextFragmentInDS(struct Packet *processedFragment, int expectedFragment){
     return -1;
 }
 
-int yetToDeFragment(struct Packet fragment){
+//check if a fragment is a future fragment
+int yetToDeFragment(Packet fragment){
     if(fragment.fragmentOffset > expectedFragment){
         printf("%d is yet to defragment\n",fragment.fragmentOffset);
         return 1;
@@ -161,7 +182,8 @@ int yetToDeFragment(struct Packet fragment){
     return 0;
 }
 
-int isDuplicate(struct Packet *processedFragment, struct Packet fragment){
+//check the fragment redundancy in the datastructure
+int isDuplicate(Packet *processedFragment, Packet fragment){
     for(int i=0; i<=processedFragmentCount; i++)
         if(processedFragment[i].fragmentOffset == fragment.fragmentOffset){
             printf("%d is a duplicate fragment\n",fragment.fragmentOffset);
@@ -171,7 +193,10 @@ int isDuplicate(struct Packet *processedFragment, struct Packet fragment){
     return 0;
 }
 
-void storeInDS(struct Packet *processedFragment, struct Packet fragment){
+//if the fragment dequeued from the queue is not the destined fragment 
+//and if its future fragment and if its not redundant 
+//then it will be stored in a seperate datastructure
+void storeInDS(Packet *processedFragment, Packet fragment){
     if(yetToDeFragment(fragment))
         if(!isDuplicate(processedFragment, fragment)){
             for(int i=0; i<=processedFragmentCount; i++)
@@ -181,54 +206,28 @@ void storeInDS(struct Packet *processedFragment, struct Packet fragment){
                 }
             processedFragment[++processedFragmentCount] = fragment;
             printf("%d stored in DS\n", fragment.fragmentOffset);
-        }
-            
+        }     
 }
 
 int main(){
 
-    struct Packet fragment;
-    struct Packet defragmentedPacket;
+    Packet fragment;
+    Packet defragmentedPacket;
 
     strcat(defragmentedPacket.data,"");
 
     int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
-    int clientSocket = connectSocket(serverSocket);
+    int clientSocket = initServer(serverSocket);
     if(clientSocket < 0)
         printf("%d",clientSocket);
 
-    // Drops, if out of order...
-
-    // int readStatus = recv(clientSocket, (struct Packet*)&packet, sizeof(packet), 0);
-
-    // int flag;
-    // while(readStatus){
-    //     if(packetCount == packet.fragmentOffset){
-    //         strcat(defragmentedPacket.data, packet.data);
-    //         packetCount++;            
-    //         flag = 1;
-    //     }
-    //     else{
-    //         printf("Packets out of order :)\n");
-    //         flag = 0;
-    //         break;
-    //     }
-    //     readStatus = recv(clientSocket, (struct Packet*)&packet, sizeof(packet), 0);
-    // }
- 
-    // if(flag == 1){
-    //     defragmentedPacket = setHeader(packet);
-    //     printDefragmentedPacket(defragmentedPacket);
-    // }
-
-
     //Re-ordering.. when received..
 
-    struct Packet bufferQueue[5];
-    struct Packet processedFragment[5];
+    Packet bufferQueue[5];
+    Packet processedFragment[5];
 
     int readStatus = recv(clientSocket, (struct Packet*)&fragment, sizeof(fragment), 0);
-    while(readStatus && ((int)strlen(defragmentedPacket.data))<(fragment.totalLength-fragment.headerLength)){
+    while(readStatus && ((int)strlen(defragmentedPacket.data))<(fragment.totalLength-fragment.headerLength)){       //checking MF :(
 
         // rear = enQueue(fragment, bufferQueue, rear, front);     //since..sender and receiver are at different speed
         // fragment = deQueue(bufferQueue, rear, front);
@@ -247,13 +246,10 @@ int main(){
 
     }
 
-    // defragmentedPacket = setHeader(fragment, defragmentedPacket.data);
-    // printDefragmentedPacket(defragmentedPacket);
-
-    printf("\n%s\n", defragmentedPacket.data);
+    setHeader(defragmentedPacket, fragment);
+    printDefragmentedPacket(defragmentedPacket);
 
     close(clientSocket);
     return 0;
 
 }
-
