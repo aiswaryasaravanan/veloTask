@@ -6,8 +6,9 @@
 #include <sys/types.h>
 #include <netinet/in.h>
 #include <unistd.h>
-#include <arpa/inet.h>
+// #include <arpa/inet.h>
 #include <string.h>
+#include <limits.h>
 #include "serverPrototype.h"
 // #include "packet.h"
 // #include "queue.c"
@@ -43,6 +44,7 @@ int initServer(int serverSocket){
 
 Packet setHeader(Packet defragmentedPacket, Packet fragment){
     defragmentedPacket.version = fragment.version;
+    defragmentedPacket.identification = fragment.identification;
     defragmentedPacket.headerLength = fragment.headerLength;
     defragmentedPacket.totalLength = fragment.totalLength;
     defragmentedPacket.fragmentOffset = 0;
@@ -54,6 +56,7 @@ Packet setHeader(Packet defragmentedPacket, Packet fragment){
 //to print the final defragmented packet
 void printDefragmentedPacket(Packet defragmentedPacket){
     printf("\n\nversion:%d\t", defragmentedPacket.version);
+    printf("packetIdentification:%d\t", defragmentedPacket.identification);
     printf("fragmentOffset:%d\t", defragmentedPacket.fragmentOffset);
     printf("headerLength:%d\n", defragmentedPacket.headerLength);
     printf("Data:%s\t\t", defragmentedPacket.data);
@@ -75,9 +78,12 @@ int isDestinedFragment(Packet fragment){
 
 //This will append the fragment data to the final defragmented packet's data
 Packet deFragment(Packet defragmentedPacket, Packet fragment){
+    // int payLoadSize = 0;
     printf("defragmenting %d\n",fragment.fragmentOffset);
     strcat(defragmentedPacket.data, fragment.data);
     printf("defragmnted packet data:%s\n", defragmentedPacket.data);
+    // payLoadSize = fragment.totalLength - fragment.headerLength;
+    // expectedFragment+=payLoadSize;
     expectedFragment++;
     return defragmentedPacket;
 }
@@ -132,36 +138,47 @@ void storeInDS(Packet *processedFragment, Packet fragment){
 int main(){
 
     Packet fragment;
-    Packet defragmentedPacket;
 
+    Packet defragmentedPacket;
     strcat(defragmentedPacket.data,"");
 
-    // int serverSocket = socket(AF_INET, SOCK_STREAM, 0);
     int serverSocket = 0;
     int clientSocket = initServer(serverSocket);
-
-    //Re-ordering.. when received..
 
     Packet bufferQueue[5];
     Packet processedFragment[5];
 
+    //Re-ordering.. when received..
+
+    int lastFragmentOffset = INT_MAX;         //since the entire packet size and MTU of sender are unknown...lets have this to keep track of offset
+    printf("\n\n\t\t%d\n",lastFragmentOffset);
     int readStatus = recv(clientSocket, (struct Packet*)&fragment, sizeof(fragment), 0);
-    while(readStatus && ((int)strlen(defragmentedPacket.data))<(fragment.totalLength-fragment.headerLength)){       //checking MF :(
+    while(readStatus){
         // rear = enQueue(fragment, bufferQueue, rear, front);     //since..sender and receiver are at different speed
         // fragment = deQueue(bufferQueue, rear, front);
-        if(isDestinedFragment(fragment)){
-            defragmentedPacket = deFragment(defragmentedPacket, fragment);
-            int index = isNextFragmentInDS(processedFragment, expectedFragment);
-            while(index >= 0){
-                defragmentedPacket = deFragment(defragmentedPacket, processedFragment[index]);
-                processedFragment[index].fragmentOffset = -1;
-                index = isNextFragmentInDS(processedFragment, expectedFragment);
-            }
-        }else
-            storeInDS(processedFragment, fragment);
-        
-        readStatus = recv(clientSocket, (struct Packet*)&fragment, sizeof(fragment), 0);
 
+        printf("\n%d\t-\t%d\n", fragment.fragmentOffset, lastFragmentOffset);
+        if( fragment.fragmentOffset <= lastFragmentOffset ){
+
+            if(fragment.ipflag.DF == 1)
+                lastFragmentOffset = fragment.fragmentOffset;
+
+            if(isDestinedFragment(fragment)){
+                defragmentedPacket = deFragment(defragmentedPacket, fragment);
+                int index = isNextFragmentInDS(processedFragment, expectedFragment);
+                while(index >= 0){
+                    defragmentedPacket = deFragment(defragmentedPacket, processedFragment[index]);
+                    processedFragment[index].fragmentOffset = -1;
+                    index = isNextFragmentInDS(processedFragment, expectedFragment);
+                }
+            }else{
+                storeInDS(processedFragment, fragment);
+            }readStatus = recv(clientSocket, (struct Packet*)&fragment, sizeof(fragment), 0);
+        }else{
+            readStatus = 0;
+            // exit(0);
+        }
+        // readStatus = recv(clientSocket, (struct Packet*)&fragment, sizeof(fragment), 0);
     }
 
     defragmentedPacket = setHeader(defragmentedPacket, fragment);

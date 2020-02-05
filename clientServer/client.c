@@ -38,7 +38,7 @@ int initClient(int clientSocket){
 //cutting down the packet data into fragments as per MTU value using strncpy
 Packet fragmentPacket(Packet packet, int fragOffset, int startIndex){
     Packet fragmentedPacket;
-    fragmentedPacket = setHeader(fragmentedPacket, fragOffset, packet.totalLength-packet.headerLength);
+    fragmentedPacket = setHeader(fragmentedPacket, fragOffset, packet.identification, packet.totalLength-packet.headerLength);
     strncpy(fragmentedPacket.data, packet.data+startIndex, (MTU - packet.headerLength));
     fragmentedPacket = setFlag(fragmentedPacket);
     return fragmentedPacket;
@@ -63,6 +63,7 @@ void updateCheckList(int checkList[], int randPacket, int noOfFragments){
 
 void printFragment(Packet fragment){
     printf("version:%d\t", fragment.version);
+    printf("packetIdentification:%d\t",fragment.identification);
     printf("fragmentOffset:%d\t", fragment.fragmentOffset);
     printf("headerLength:%d\n", fragment.headerLength);
     printf("Data:%s\t", fragment.data);
@@ -73,15 +74,17 @@ void printFragment(Packet fragment){
 
 //generate a random number and send the fragments accordingly
 void shuffleAndSend(int noOfFragments, Packet *fragmentedPackets, int clientSocket){
+
     srand(time(NULL));
-    int randPacket;
+    int randPacket = 0;
     int checkList[noOfFragments];
+
     for(int i=0; i<noOfFragments; i++)
         checkList[i] = i;
+
     while(isYetToSend(checkList, noOfFragments)){
         randPacket = rand() % noOfFragments;
         updateCheckList(checkList, randPacket, noOfFragments);
-        printf("%d\n",randPacket);
         send(clientSocket, (void *)&fragmentedPackets[randPacket], sizeof(fragmentedPackets[randPacket]), 0);
         printFragment(fragmentedPackets[randPacket]);
     }
@@ -100,26 +103,24 @@ void shuffleAndSend(int noOfFragments, Packet *fragmentedPackets, int clientSock
 // }
 
 
-Packet setHeader(Packet packet, int fragmentOffset, int dataLength){
+Packet setHeader(Packet packet, int fragmentOffset, int packetId, int dataLength){
     packet.version = VERSION;
     packet.headerLength = HEADERLENGTH;
-    // packet.data[200] = data;
-    // packet.totalLength = strlen(packet.data) + packet.headerLength;
     packet.totalLength = dataLength + HEADERLENGTH;
     packet.fragmentOffset = fragmentOffset;
+    packet.identification = packetId;
     return packet;
 }
 
 Packet setFlag(Packet fragmentedPacket){
+
     if((fragmentedPacket.fragmentOffset+1)* (MTU - fragmentedPacket.headerLength) < fragmentedPacket.totalLength - fragmentedPacket.headerLength){
         fragmentedPacket.ipflag.MF = 1;
         fragmentedPacket.ipflag.DF = 0;
-    }
-    else{
+    }else{
         fragmentedPacket.ipflag.DF = 1;
         fragmentedPacket.ipflag.MF = 0;
-    }
-    return fragmentedPacket;
+    }return fragmentedPacket;
 }
 
 int main(){
@@ -127,14 +128,14 @@ int main(){
     Packet packet;
     Packet fragment;
 
-    // int clientSocket  = socket(AF_INET, SOCK_STREAM, 0);
     int clientSocket = 0;
-    
     clientSocket = initClient(clientSocket);
 
-
     scanf("%s",packet.data);
-    packet = setHeader(packet, 0, strlen(packet.data)); 
+    int packetId = rand();
+    printf("\nPacket ID: %d \n", packetId);
+
+    packet = setHeader(packet, 0, packetId, strlen(packet.data)); 
 
     if(packet.totalLength > MTU){
         int noOfFragments = (int)ceil((float)(packet.totalLength - packet.headerLength)/(float)(MTU - packet.headerLength));
@@ -144,10 +145,12 @@ int main(){
 
         for(int i = 0; i < (packet.totalLength - packet.headerLength); i += (MTU - packet.headerLength),fragOffset++)
             fragmentedPackets[fragOffset] = fragmentPacket(packet, fragOffset, i);
+
         shuffleAndSend(noOfFragments, fragmentedPackets, clientSocket);
     }
-    else
+    else{
         send(clientSocket, (void *)&packet, sizeof(packet), 0);
+    }
 
     close(clientSocket);
     return 0;
