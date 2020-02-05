@@ -9,34 +9,13 @@
 #include <string.h>  
 #include <math.h>
 #include <time.h>        //for srand function
+// #include "packet.h"
+#include "clientPrototype.h"
 
 #define MTU 30
 #define VERSION 4
 #define HEADERLENGTH 20
 
-typedef struct{
-    int DF;
-    int MF;
-}IPFlag;
-
-typedef struct{
-    int version; 
-    int headerLength;
-    int totalLength;
-    IPFlag ipflag;
-    int fragmentOffset;
-    // char* sourceAddress;
-    // char* destinationAddress;
-    char data[200];
-}Packet;
-
-int initClient(int);
-Packet fragmentPacket(Packet, int, int);
-int isYetToSend(int*, int);
-void updateCheckList(int*, int, int);
-Packet setHeader(Packet, int, int);
-Packet setFlag (Packet);
-void shuffleAndSend(int, Packet*, int);
 
 //connect with server socket
 int initClient(int clientSocket){
