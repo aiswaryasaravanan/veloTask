@@ -1,6 +1,8 @@
 #include "packet.h"
 
-int initServer(int);
+int connectSocket(int, int);
+int acceptSocket(int, int);
+// int initServer(int, int);
 Packet setHeader(Packet, Packet);
 void printDefragmentedPacket(Packet);
 int isFull(Packet*, int, int);

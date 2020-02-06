@@ -14,6 +14,7 @@
             int totalLength;
             IPFlag ipflag;
             int fragmentOffset;
+            int identification;
             // char* sourceAddress;
             // char* destinationAddress;
             char data[200];
