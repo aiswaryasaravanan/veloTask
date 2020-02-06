@@ -2,46 +2,20 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-#include <netinet/in.h>
-#include <unistd.h>
-// #include <arpa/inet.h>
 #include <string.h>
 #include <limits.h>
+#include <unistd.h>
+#include <sys/socket.h>
 #include "serverPrototype.h"
-// #include "packet.h"
-// #include "queue.c"
+
+#define PORT1 8080
 
 int rear = -1;
 int front = 0;
 int expectedFragment = 0;
 int processedFragmentCount = -1;
-int timer = 5;
+int timer = 15;
 
-//to connect and accept the socket connection with client
-int initServer(int serverSocket){
-    serverSocket = socket(AF_INET, SOCK_STREAM, 0);
-
-    struct sockaddr_in serverAddress;
-    serverAddress.sin_family = AF_INET;             //ipv4
-    serverAddress.sin_addr.s_addr = INADDR_ANY;     
-    serverAddress.sin_port = htons(8080);           //host to network byte addr translation
-
-    int bindStatus = bind(serverSocket, (struct sockaddr*)&serverAddress, sizeof(serverAddress));
-    if(bindStatus < 0)
-        printf("%d", bindStatus);
-
-    int listenStatus = listen(serverSocket, 5);
-    if(listenStatus < 0)                            //backlog queue size=5(maximum no. of connection it can wait for)
-        printf("%d", listenStatus);
-
-    int clientSocket = accept(serverSocket, (struct sockaddr*)&serverAddress, (socklen_t*)&serverAddress);
-    if(clientSocket < 0){
-        printf("%d",clientSocket);
-        exit(0);
-    }return clientSocket;
-}
 
 Packet setHeader(Packet defragmentedPacket, Packet fragment){
     defragmentedPacket.version = fragment.version;
@@ -82,8 +56,9 @@ int isDestinedFragment(Packet fragment){
 Packet deFragment(Packet defragmentedPacket, Packet fragment){
     printf("defragmenting %d\n",fragment.fragmentOffset);
     strcat(defragmentedPacket.data, fragment.data);
-    timer = 3;
+    timer = 15;
     printf("defragmnted packet data:%s\n", defragmentedPacket.data);
+    defragmentedPacket.totalLength = defragmentedPacket.headerLength +strlen(defragmentedPacket.data);
     expectedFragment+=fragment.totalLength - fragment.headerLength;
     // expectedFragment++;
     return defragmentedPacket;
@@ -144,7 +119,7 @@ int main(){
     strcat(defragmentedPacket.data,"");
 
     int serverSocket = 0;
-    int clientSocket = initServer(serverSocket);
+    int clientSocket = connectSocket(serverSocket, PORT1);
 
     Packet bufferQueue[5];
     Packet processedFragment[5];
@@ -152,17 +127,21 @@ int main(){
     //Re-ordering.. when received..
 
     int packetSize = INT_MAX;         //since the entire packet size and MTU of sender are unknown...lets have this to keep track of offset
-    int payLoadSize = -1;
     
     int readStatus = recv(clientSocket, (struct Packet*)&fragment, sizeof(fragment), 0);
+    defragmentedPacket = setHeader(defragmentedPacket, fragment);
+
     while(readStatus && (strlen(defragmentedPacket.data) < packetSize)){
 
         // rear = enQueue(fragment, bufferQueue, rear, front);     //since..sender and receiver are at different speed
         // fragment = deQueue(bufferQueue, rear, front);
 
+
         if(timer > 0){
             if(fragment.ipflag.DF == 1)
                 packetSize = fragment.fragmentOffset + fragment.totalLength;
+
+            printf("PacketSize:%d -%d\n",packetSize,defragmentedPacket.totalLength);
 
             if(isDestinedFragment(fragment)){
                 defragmentedPacket = deFragment(defragmentedPacket, fragment);
@@ -181,7 +160,7 @@ int main(){
         }
         timer--;
     }
-    if(strlen(defragmentedPacket.data) < packetSize){
+    if(defragmentedPacket.totalLength < packetSize){
         printf("Packet loss occurs...\n");
         exit(0);
     }
