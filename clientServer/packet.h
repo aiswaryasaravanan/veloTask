@@ -3,7 +3,7 @@
         typedef struct{
             int DF;
             int MF;
-        }IPFlag;
+        } IPFlag;
 #endif
 
 #ifndef frameFormat
@@ -18,5 +18,5 @@
             // char* sourceAddress;
             // char* destinationAddress;
             char data[200];
-        }Packet;
+        } Packet;
 #endif

@@ -2,6 +2,17 @@
     "files.associations": {
         "inet.h": "c",
         "stdio.h": "c",
-        "unistd.h": "c"
+        "unistd.h": "c",
+        "algorithm": "c",
+        "string.h": "c",
+        "socket.h": "c",
+        "packet.h": "c",
+        "clientprototype.h": "c",
+        "stdlib.h": "c",
+        "array": "c",
+        "iterator": "c",
+        "string": "c",
+        "string_view": "c",
+        "vector": "c"
     }
 }
