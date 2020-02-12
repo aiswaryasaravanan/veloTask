@@ -21,7 +21,7 @@ int generatePacketId()
     return packetId;
 }
 
-Packet setHeader(Packet packet, int packetId, int version, int headerLength, char data[200], int fragmentOffset, int isFragment, int isLastFragment)
+Packet setHeader(Packet packet, int packetId, int version, int headerLength, char *data, int fragmentOffset, int isFragment, int isLastFragment)
 {
     packet.version = version;
     packet.headerLength = headerLength;
@@ -90,7 +90,6 @@ void printFragment(Packet fragment)
 
 void shuffleAndSend(int noOfFragments, Packet *fragmentedPackets, int clientSocket)
 {
-
     srand(time(NULL));
     int randPacket = 0;
     int checkList[noOfFragments];
@@ -129,7 +128,7 @@ int main()
     clientSocket = acceptSocket(clientSocket, PORT1);
     int choice = 0;
 
-    int noOfPacket = 3; // #DEF PACKET_SIZE = 3
+    int noOfPacket = 2;
     int index = 0;
     int noOfFragments = 0;
     int packetId = 0;
@@ -158,7 +157,7 @@ int main()
         else
         {
             printf("No need to fragment this packet...\n");
-            send(clientSocket, (void *)&packet, sizeof(packet), 0);
+            send(clientSocket, (void *)&packet, sizeofx(packet), 0);
         }
 
         noOfPacket--;
@@ -170,11 +169,11 @@ int main()
             printf("Do you want to continue sending more packets: (1/0)\n");
             scanf("%d", &choice);
             if (choice == 1)
-                noOfPacket = 3; // reset to initial size
+                noOfPacket = 2; // reset to initial size
         }
     } while (noOfPacket > 0 || choice == 1);
 
     // shuffleAndSend(noOfFragments, fragmentedPackets, clientSocket);
-    // close(clientSocket);
+    close(clientSocket);
     return 0;
 }
