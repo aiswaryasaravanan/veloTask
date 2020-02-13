@@ -128,7 +128,7 @@ int main()
     clientSocket = acceptSocket(clientSocket, PORT1);
     int choice = 0;
 
-    int noOfPacket = 2;
+    int noOfPacket = 1;
     int index = 0;
     int noOfFragments = 0;
     int packetId = 0;
@@ -157,7 +157,7 @@ int main()
         else
         {
             printf("No need to fragment this packet...\n");
-            send(clientSocket, (void *)&packet, sizeofx(packet), 0);
+            send(clientSocket, (void *)&packet, sizeof(packet), 0);
         }
 
         noOfPacket--;

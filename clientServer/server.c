@@ -13,12 +13,12 @@
 #define PORT1 8080
 
 int rear = -1;
-int front = 0;
+int front = -1;
 int processedFragmentCount = -1;
 int packetCount = -1;
 
-PacketSpecific packetSpecific[15];
-PacketSpecific *currentEntry;
+// PacketSpecific packetSpecific[15];
+// PacketSpecific *currentEntry;
 
 Packet setHeader(Packet defragmentedPacket, Packet fragment)
 {
@@ -32,7 +32,7 @@ Packet setHeader(Packet defragmentedPacket, Packet fragment)
     return defragmentedPacket;
 }
 
-int isNewPacket(Packet packet)
+int isNewPacket(PacketSpecific *packetSpecific, Packet packet)
 {
     for (int i = 0; i <= packetCount; i++)
         if (packet.identification == packetSpecific[i].packet.identification)
@@ -44,7 +44,7 @@ int isNewPacket(Packet packet)
     return 1;
 }
 
-void addEntry(Packet packet)
+void addEntry(PacketSpecific *packetSpecific, Packet packet)
 {
     int index = ++packetCount;
     // for(int i=0; i<packetCount; i++)
@@ -60,7 +60,7 @@ void addEntry(Packet packet)
     packetSpecific[index].timer = 15;
 }
 
-PacketSpecific *getEntry(Packet packet)
+PacketSpecific *getEntry(PacketSpecific *packetSpecific, Packet packet)
 {
     int i = 0;
     for (; i <= packetCount; i++)
@@ -189,22 +189,25 @@ int main()
     int serverSocket = 0;
     int clientSocket = connectSocket(serverSocket, PORT1);
 
-    Packet bufferQueue[5];       //queue
+    Packet bufferQueue[15];       //queue
     Packet processedFragment[5]; //DS
+
+    PacketSpecific packetSpecific[15];
+    PacketSpecific *currentEntry;
 
     //Re-ordering.. when received..
     int readStatus = recv(clientSocket, (struct Packet *)&fragment, sizeof(fragment), 0);
 
     while (readStatus)
     {
-        // rear = enQueue(fragment, bufferQueue, rear, front);     //since..sender and receiver are at different speed
-        // fragment = deQueue(bufferQueue, rear, front);
+        enQueue(fragment, bufferQueue, &rear, &front);     //since..sender and receiver are at different speed
+        fragment = deQueue(bufferQueue, &rear, &front);
 
-        if (isNewPacket(fragment))
+        if (isNewPacket(packetSpecific, fragment))
         {
-            addEntry(fragment);
+            addEntry(packetSpecific, fragment);
         }
-        currentEntry = getEntry(fragment);
+        currentEntry = getEntry(packetSpecific, fragment);
         if (currentEntry->isDone == 1)
         {
             readStatus = recv(clientSocket, (struct Packet *)&fragment, sizeof(fragment), 0);
