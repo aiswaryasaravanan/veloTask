@@ -2,11 +2,13 @@
 #include <stdlib.h>
 #include "packet.h"
 
+#define BUFFERSIZE 15
+
 //verify the bufferSize at receiver side.. since the speed at which the sender is sending
 // and the speed at which the receiver is receiving differs...
 int isFull(Packet *bufferQueue, int rear, int front)
 {
-    if ((front == 0 && rear == 15 - 1) || (front == rear + 1))
+    if ((front == 0 && rear == BUFFERSIZE - 1) || (front == rear + 1))
         return 1;
     return 0;
 }
@@ -35,10 +37,10 @@ void enQueue(Packet fragment, Packet *bufferQueue, int *rear, int *front)
     }
     else
     {
-        if (*rear == 15 - 1)
+        if (*rear == BUFFERSIZE - 1)
             *rear = 0;
         else
-            *rear = (*rear + 1) % 15;
+            *rear = (*rear + 1) % BUFFERSIZE;
     }
     bufferQueue[*rear] = fragment;
 }
@@ -58,10 +60,10 @@ Packet deQueue(Packet *bufferQueue, int *rear, int *front)
     }
     else
     {
-        if (*front == 15 - 1)
+        if (*front == BUFFERSIZE - 1)
             *front = 0;
         else
-            *front = (*front + 1) % 15;
+            *front = (*front + 1) % BUFFERSIZE;
     }
     return packet;
 }
