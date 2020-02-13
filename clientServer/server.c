@@ -6,11 +6,16 @@
 #include <limits.h>
 #include <unistd.h>
 #include <sys/socket.h>
+#include <pthread.h>
 #include "serverPrototype.h"
 // #include "packet.h"
 // #include "packetSpecificInfo.h"
 
 #define PORT1 8080
+
+extern struct sockaddr_in serverAddress;
+
+pthread_mutex_t lock;
 
 int rear = -1;
 int front = -1;
@@ -58,6 +63,7 @@ void addEntry(PacketSpecific *packetSpecific, Packet packet)
     packetSpecific[index].packet = setHeader(packetSpecific[index].packet, packet);
     packetSpecific[index].expectedFragment = 0;
     packetSpecific[index].timer = 15;
+    packetSpecific[index].isDone = 0;
 }
 
 PacketSpecific *getEntry(PacketSpecific *packetSpecific, Packet packet)
@@ -181,26 +187,26 @@ void printPackets(PacketSpecific *packetSpecific)
     }
 }
 
-int main()
+void *receiveAndReorder(void *args)
 {
+
+    // pthread_mutex_lock(&lock);
 
     Packet fragment;
 
-    int serverSocket = 0;
-    int clientSocket = connectSocket(serverSocket, PORT1);
-
-    Packet bufferQueue[15];       //queue
+    Packet bufferQueue[15];      //queue
     Packet processedFragment[5]; //DS
 
     PacketSpecific packetSpecific[15];
     PacketSpecific *currentEntry;
 
-    //Re-ordering.. when received..
-    int readStatus = recv(clientSocket, (struct Packet *)&fragment, sizeof(fragment), 0);
+    int *clientSocket = (int *)args;
+
+    int readStatus = recv(*clientSocket, (struct Packet *)&fragment, sizeof(fragment), 0);
 
     while (readStatus)
     {
-        enQueue(fragment, bufferQueue, &rear, &front);     //since..sender and receiver are at different speed
+        enQueue(fragment, bufferQueue, &rear, &front); //since..sender and receiver are at different speed
         fragment = deQueue(bufferQueue, &rear, &front);
 
         if (isNewPacket(packetSpecific, fragment))
@@ -210,10 +216,9 @@ int main()
         currentEntry = getEntry(packetSpecific, fragment);
         if (currentEntry->isDone == 1)
         {
-            readStatus = recv(clientSocket, (struct Packet *)&fragment, sizeof(fragment), 0);
+            readStatus = recv(*clientSocket, (struct Packet *)&fragment, sizeof(fragment), 0);
             continue;
         }
-
         // if(currentEntry.timer > 0){
         if (fragment.ipflag.DF == 1)
             currentEntry->packetSize = fragment.fragmentOffset + fragment.totalLength;
@@ -233,7 +238,7 @@ int main()
             storeInDS(processedFragment, fragment, currentEntry->expectedFragment);
         }
 
-        readStatus = recv(clientSocket, (struct Packet *)&fragment, sizeof(fragment), 0);
+        readStatus = recv(*clientSocket, (struct Packet *)&fragment, sizeof(fragment), 0);
         // }else{
         //     printf("Timer expires...Wait time exceeded...");
         //     // exit(0);
@@ -244,7 +249,38 @@ int main()
     //     printf("Packet loss occurs...\n");
     //     exit(0);
     // }
+
+    // pthread_mutex_unlock(&lock);
+
     printPackets(packetSpecific);
+    return NULL;
+}
+
+int main()
+{
+
+    int serverSocket = 0;
+    serverSocket = listenSocket(PORT1);
+    int clientSocket = 0;
+
+    pthread_t pId;
+    pthread_mutex_init(&lock, NULL);
+
+    while (1)
+    {
+        clientSocket = accept(serverSocket, (struct sockaddr *)&serverAddress, (socklen_t *)&serverAddress);
+        if (clientSocket < 0)
+        {
+            printf("%d", clientSocket);
+            exit(0);
+        }
+        //Re-ordering.. when received..
+        pthread_create(&pId, NULL, receiveAndReorder, (void *)&clientSocket);
+        pthread_join(pId, NULL);
+        // receiveAndReorder(clientSocket);
+    }
+
+    pthread_mutex_destroy(&lock);
 
     close(clientSocket);
     return 0;

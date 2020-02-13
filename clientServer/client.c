@@ -87,7 +87,6 @@ void printFragment(Packet fragment)
 }
 
 // generate a random number and send the fragments accordingly
-
 void shuffleAndSend(int noOfFragments, Packet *fragmentedPackets, int clientSocket)
 {
     srand(time(NULL));
@@ -125,10 +124,10 @@ int main()
     Packet fragmentedPackets[100];
 
     int clientSocket = 0;
-    clientSocket = acceptSocket(clientSocket, PORT1);
+    clientSocket = connectSocket(clientSocket, PORT1);
     int choice = 0;
 
-    int noOfPacket = 1;
+    int noOfPacket = 2;
     int index = 0;
     int noOfFragments = 0;
     int packetId = 0;

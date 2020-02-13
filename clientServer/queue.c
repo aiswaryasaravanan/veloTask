@@ -38,7 +38,7 @@ void enQueue(Packet fragment, Packet *bufferQueue, int *rear, int *front)
         if (*rear == 15 - 1)
             *rear = 0;
         else
-            *rear = (*rear + 1)%15;
+            *rear = (*rear + 1) % 15;
     }
     bufferQueue[*rear] = fragment;
 }
@@ -61,7 +61,7 @@ Packet deQueue(Packet *bufferQueue, int *rear, int *front)
         if (*front == 15 - 1)
             *front = 0;
         else
-            *front = (*front + 1)%15;
+            *front = (*front + 1) % 15;
     }
     return packet;
 }
