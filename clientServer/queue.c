@@ -1,19 +1,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "packet.h"
+#include "packetSpecificInfo.h"
 
 #define BUFFERSIZE 15
 
 //verify the bufferSize at receiver side.. since the speed at which the sender is sending
 // and the speed at which the receiver is receiving differs...
-int isFull(Packet *bufferQueue, int rear, int front)
+int isFull(ClientPacket *queue, int rear, int front)
 {
     if ((front == 0 && rear == BUFFERSIZE - 1) || (front == rear + 1))
         return 1;
     return 0;
 }
 
-int isEmpty(Packet *bufferQueue, int rear, int front)
+int isEmpty(ClientPacket *queue, int rear, int front)
 {
     // if((rear-front+1) == 0)
     if (front == -1)
@@ -22,14 +23,15 @@ int isEmpty(Packet *bufferQueue, int rear, int front)
 }
 
 //Enqueue the fragment into the buffer(from the socket) which will later be used by the receiver
-void enQueue(Packet fragment, Packet *bufferQueue, int *rear, int *front)
+void enQueue(ClientPacket clientPacket, ClientPacket *queue, int *rear, int *front)
 {
     printf("Rear before enqueue :%d\n", *rear);
-    if (isFull(bufferQueue, *rear, *front))
+    if (isFull(queue, *rear, *front))
     {
         printf("Buffer size exceeds...Packets dropped...\n");
         exit(0);
     }
+
     if (*front == -1)
     {
         *front = 0;
@@ -42,17 +44,17 @@ void enQueue(Packet fragment, Packet *bufferQueue, int *rear, int *front)
         else
             *rear = (*rear + 1) % BUFFERSIZE;
     }
-    bufferQueue[*rear] = fragment;
+    queue[*rear] = clientPacket;
 }
 
-Packet deQueue(Packet *bufferQueue, int *rear, int *front)
+ClientPacket deQueue(ClientPacket *queue, int *rear, int *front)
 {
-    if (isEmpty(bufferQueue, *rear, *front))
+    if (isEmpty(queue, *rear, *front))
     {
         printf("Nothing to read...\n");
         exit(0);
     }
-    Packet packet = bufferQueue[*front];
+    ClientPacket clientPacket = queue[*front];
     if (*front == *rear)
     {
         *front = -1;
@@ -65,7 +67,7 @@ Packet deQueue(Packet *bufferQueue, int *rear, int *front)
         else
             *front = (*front + 1) % BUFFERSIZE;
     }
-    return packet;
+    return clientPacket;
 }
 
 // void printQueue(struct Packet *bufferQueue){

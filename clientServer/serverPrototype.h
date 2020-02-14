@@ -3,7 +3,7 @@
 
 int connectSocket(int, int);
 int listenSocket(int);
-void *receiveAndReorder(void *);
+void receiveAndReorder(int);
 // int initServer(int, int);
 int isNewPacket(PacketSpecific *, Packet);
 void addEntry(PacketSpecific *, Packet);
@@ -13,8 +13,8 @@ void printPackets(PacketSpecific *);
 void printDefragmentedPacket(Packet);
 int isFull(Packet *, int, int);
 int isEmpty(Packet *, int, int);
-int enQueue(Packet, Packet *, int *, int *);
-Packet deQueue(Packet *, int *, int *);
+void enQueue(ClientPacket, ClientPacket *, int *, int *);
+ClientPacket deQueue(ClientPacket *, int *, int *);
 int isDestinedFragment(Packet, int);
 PacketSpecific *deFragment(PacketSpecific *, Packet);
 int isNextFragmentInDS(Packet *, Packet, PacketSpecific *);

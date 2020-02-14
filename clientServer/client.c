@@ -8,11 +8,14 @@
 #include <math.h>
 #include <time.h> //for srand function
 #include "clientPrototype.h"
+#include "packetSpecificInfo.h"
 
 #define MTU 30
 #define VERSION 4
 #define HEADERLENGTH 20
 #define PORT1 8080
+
+#define CLIENTID rand()
 
 int generatePacketId()
 {
@@ -89,9 +92,12 @@ void printFragment(Packet fragment)
 // generate a random number and send the fragments accordingly
 void shuffleAndSend(int noOfFragments, Packet *fragmentedPackets, int clientSocket)
 {
+
     srand(time(NULL));
     int randPacket = 0;
     int checkList[noOfFragments];
+
+    ClientPacket clientPacket;      //to associate packet with client 
 
     for (int i = 0; i < noOfFragments; i++)
         checkList[i] = i;
@@ -99,9 +105,14 @@ void shuffleAndSend(int noOfFragments, Packet *fragmentedPackets, int clientSock
     while (isYetToSend(checkList, noOfFragments))
     {
         randPacket = rand() % noOfFragments;
-        send(clientSocket, (void *)&fragmentedPackets[randPacket], sizeof(fragmentedPackets[randPacket]), 0);
+
+        //associating packet with client and sending the associated structure to receiver
+        clientPacket.clientId = CLIENTID;
+        clientPacket.packet = fragmentedPackets[randPacket];
+
+        send(clientSocket, (void *)&clientPacket, sizeof(clientPacket), 0);
         updateCheckList(checkList, randPacket, noOfFragments);
-        printFragment(fragmentedPackets[randPacket]);
+        // printFragment(fragmentedPackets[randPacket]);
     }
 }
 
@@ -119,6 +130,8 @@ void shuffleAndSend(int noOfFragments, Packet *fragmentedPackets, int clientSock
 
 int main()
 {
+    srand(time(NULL));
+    
     Packet packet;
     Packet fragment;
     Packet fragmentedPackets[100];
@@ -138,15 +151,15 @@ int main()
         choice = 0;
 
         // starts
-        packetId = generatePacketId();
         printf("Enter data:\n");
         scanf("%s", packet.data);
+        packetId = generatePacketId();
 
         packet = setHeader(packet, packetId, VERSION, HEADERLENGTH, packet.data, 0, 0, 0);
 
         if (packet.totalLength > MTU)
         {
-            printf("Have to fragment this packet...");
+            // printf("Have to fragment this packet...");
             noOfFragments += (int)ceil((float)(strlen(packet.data)) / (float)(MTU - packet.headerLength));
 
             for (int fragOffset = 0; fragOffset < (packet.totalLength - packet.headerLength); fragOffset += (MTU - packet.headerLength))
@@ -155,8 +168,12 @@ int main()
         }
         else
         {
-            printf("No need to fragment this packet...\n");
-            send(clientSocket, (void *)&packet, sizeof(packet), 0);
+            // printf("No need to fragment this packet...\n");
+            ClientPacket clientPacket;      //to associate packet with client 
+            clientPacket.clientId = CLIENTID;
+            clientPacket.packet = packet;
+
+            send(clientSocket, (void *)&clientPacket, sizeof(clientPacket), 0);
         }
 
         noOfPacket--;

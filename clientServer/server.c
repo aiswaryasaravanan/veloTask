@@ -12,6 +12,7 @@
 // #include "packetSpecificInfo.h"
 
 #define PORT1 8080
+#define BUFFERSIZE 15
 
 extern struct sockaddr_in serverAddress;
 
@@ -19,11 +20,13 @@ pthread_mutex_t lock;
 
 int rear = -1;
 int front = -1;
+// int rearMain = -1;
+// int frontMain = -1;
 int processedFragmentCount = -1;
 int packetCount = -1;
 
-// PacketSpecific packetSpecific[15];
-// PacketSpecific *currentEntry;
+// ClientPacket mainQueue[BUFFERSIZE];
+// ClientPacket bufferQueue[15]; //thread specific queue
 
 Packet setHeader(Packet defragmentedPacket, Packet fragment)
 {
@@ -64,6 +67,8 @@ void addEntry(PacketSpecific *packetSpecific, Packet packet)
     packetSpecific[index].expectedFragment = 0;
     packetSpecific[index].timer = 15;
     packetSpecific[index].isDone = 0;
+
+    //add client ID too?
 }
 
 PacketSpecific *getEntry(PacketSpecific *packetSpecific, Packet packet)
@@ -103,7 +108,7 @@ int isDestinedFragment(Packet fragment, int expectedFragment)
 //This will append the fragment data to the final defragmented packet's data
 PacketSpecific *deFragment(PacketSpecific *currentEntry, Packet fragment)
 {
-    printf("defragmenting %d\n", fragment.fragmentOffset);
+    // printf("defragmenting %d\n", fragment.fragmentOffset);
     strcat(currentEntry->packet.data, fragment.data);
     printf("defragmented packet data:%s\n", currentEntry->packet.data);
 
@@ -181,79 +186,74 @@ void printPackets(PacketSpecific *packetSpecific)
     {
         if (packetSpecific[i].isDone != 1)
         {
-            // printf("\nPacketID:%d \t PacketData:%s \n", packetSpecific[i].packet.identification, packetSpecific[i].packet.data);
             printDefragmentedPacket(packetSpecific[i].packet);
         }
     }
 }
 
-void *receiveAndReorder(void *args)
+// void *receiveAndReorder(void *args)
+void receiveAndReorder(int clientSocket)
 {
 
     // pthread_mutex_lock(&lock);
 
-    Packet fragment;
+    // Packet fragment;
 
-    Packet bufferQueue[15];      //queue
-    Packet processedFragment[5]; //DS
+    ClientPacket bufferQueue[15]; //thread specific queue
+    Packet processedFragment[5];  //Data structure to store future fragments - thread specific
 
     PacketSpecific packetSpecific[15];
     PacketSpecific *currentEntry;
 
-    int *clientSocket = (int *)args;
+    ClientPacket clientPacket;
 
-    int readStatus = recv(*clientSocket, (struct Packet *)&fragment, sizeof(fragment), 0);
+    // int *clientSocket = (int *)args;
+
+    int readStatus = recv(clientSocket, (struct Packet *)&clientPacket, sizeof(clientPacket), 0);
 
     while (readStatus)
     {
-        enQueue(fragment, bufferQueue, &rear, &front); //since..sender and receiver are at different speed
-        fragment = deQueue(bufferQueue, &rear, &front);
+        // pthread_mutex_lock(&lock);
 
-        if (isNewPacket(packetSpecific, fragment))
+        enQueue(clientPacket, bufferQueue, &rear, &front); //since..sender and receiver are at different speed
+        clientPacket = deQueue(bufferQueue, &rear, &front);
+
+        // pthread_mutex_unlock(&lock);
+
+        if (isNewPacket(packetSpecific, clientPacket.packet))
         {
-            addEntry(packetSpecific, fragment);
+            addEntry(packetSpecific, clientPacket.packet);
         }
-        currentEntry = getEntry(packetSpecific, fragment);
+        currentEntry = getEntry(packetSpecific, clientPacket.packet);
         if (currentEntry->isDone == 1)
         {
-            readStatus = recv(*clientSocket, (struct Packet *)&fragment, sizeof(fragment), 0);
+            readStatus = recv(clientSocket, (struct ClientPacket *)&clientPacket, sizeof(clientPacket), 0);
             continue;
         }
         // if(currentEntry.timer > 0){
-        if (fragment.ipflag.DF == 1)
-            currentEntry->packetSize = fragment.fragmentOffset + fragment.totalLength;
-        if (isDestinedFragment(fragment, currentEntry->expectedFragment))
+        if (clientPacket.packet.ipflag.DF == 1)
+            currentEntry->packetSize = clientPacket.packet.fragmentOffset + clientPacket.packet.totalLength;
+        if (isDestinedFragment(clientPacket.packet, currentEntry->expectedFragment))
         {
-            currentEntry = deFragment(currentEntry, fragment);
-            int index = isNextFragmentInDS(processedFragment, fragment, currentEntry);
+            currentEntry = deFragment(currentEntry, clientPacket.packet);
+            int index = isNextFragmentInDS(processedFragment, clientPacket.packet, currentEntry);
             while (index >= 0)
             {
                 currentEntry = deFragment(currentEntry, processedFragment[index]);
                 processedFragment[index].fragmentOffset = -1;
-                index = isNextFragmentInDS(processedFragment, fragment, currentEntry);
+                index = isNextFragmentInDS(processedFragment, clientPacket.packet, currentEntry);
             }
         }
         else
         {
-            storeInDS(processedFragment, fragment, currentEntry->expectedFragment);
+            storeInDS(processedFragment, clientPacket.packet, currentEntry->expectedFragment);
         }
 
-        readStatus = recv(*clientSocket, (struct Packet *)&fragment, sizeof(fragment), 0);
-        // }else{
-        //     printf("Timer expires...Wait time exceeded...");
-        //     // exit(0);
-        // }
-        // currentEntry.timer--;
+        readStatus = recv(clientSocket, (struct ClientPacket *)&clientPacket, sizeof(clientPacket), 0);
+
+        printPackets(packetSpecific);
+        // return NULL;
     }
-    // if(currentPacket.packet.totalLength < currentPacket.packetSize){
-    //     printf("Packet loss occurs...\n");
-    //     exit(0);
-    // }
-
-    // pthread_mutex_unlock(&lock);
-
-    printPackets(packetSpecific);
-    return NULL;
 }
 
 int main()
@@ -262,9 +262,6 @@ int main()
     int serverSocket = 0;
     serverSocket = listenSocket(PORT1);
     int clientSocket = 0;
-
-    pthread_t pId;
-    pthread_mutex_init(&lock, NULL);
 
     while (1)
     {
@@ -275,12 +272,8 @@ int main()
             exit(0);
         }
         //Re-ordering.. when received..
-        pthread_create(&pId, NULL, receiveAndReorder, (void *)&clientSocket);
-        pthread_join(pId, NULL);
-        // receiveAndReorder(clientSocket);
+        receiveAndReorder(clientSocket);
     }
-
-    pthread_mutex_destroy(&lock);
 
     close(clientSocket);
     return 0;
