@@ -13,6 +13,10 @@
         "iterator": "c",
         "string": "c",
         "string_view": "c",
-        "vector": "c"
+        "vector": "c",
+        "__mutex_base": "c",
+        "atomic": "c",
+        "memory": "c",
+        "mutex": "c"
     }
 }

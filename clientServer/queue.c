@@ -1,9 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <pthread.h>
 #include "packet.h"
 #include "packetSpecificInfo.h"
 
 #define BUFFERSIZE 15
+
+extern pthread_mutex_t bufferLock;
 
 //verify the bufferSize at receiver side.. since the speed at which the sender is sending
 // and the speed at which the receiver is receiving differs...
@@ -32,6 +35,8 @@ void enQueue(ClientPacket clientPacket, ClientPacket *queue, int *rear, int *fro
         exit(0);
     }
 
+    pthread_mutex_lock(&bufferLock);
+
     if (*front == -1)
     {
         *front = 0;
@@ -45,6 +50,8 @@ void enQueue(ClientPacket clientPacket, ClientPacket *queue, int *rear, int *fro
             *rear = (*rear + 1) % BUFFERSIZE;
     }
     queue[*rear] = clientPacket;
+
+    pthread_mutex_unlock(&bufferLock);
 }
 
 ClientPacket deQueue(ClientPacket *queue, int *rear, int *front)
@@ -54,6 +61,9 @@ ClientPacket deQueue(ClientPacket *queue, int *rear, int *front)
         printf("Nothing to read...\n");
         exit(0);
     }
+
+    pthread_mutex_lock(&bufferLock);
+
     ClientPacket clientPacket = queue[*front];
     if (*front == *rear)
     {
@@ -67,6 +77,9 @@ ClientPacket deQueue(ClientPacket *queue, int *rear, int *front)
         else
             *front = (*front + 1) % BUFFERSIZE;
     }
+
+    pthread_mutex_unlock(&bufferLock);
+
     return clientPacket;
 }
 
