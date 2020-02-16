@@ -251,7 +251,7 @@ void receiveAndReorder(int clientSocket)
 
         readStatus = recv(clientSocket, (struct ClientPacket *)&clientPacket, sizeof(clientPacket), 0);
 
-        printPackets(packetSpecific);
+        // printPackets(packetSpecific);
         // return NULL;
     }
 }
