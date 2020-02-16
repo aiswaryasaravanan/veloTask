@@ -31,6 +31,7 @@ Packet setHeader(Packet packet, int packetId, int version, int headerLength, cha
     packet.totalLength = strlen(data) + HEADERLENGTH;
     packet.fragmentOffset = fragmentOffset;
     packet.identification = packetId;
+    packet.sourceAddress = CLIENTID;
 
     if (isFragment == 0 || isLastFragment == 1)
     { //its a packet...
@@ -92,12 +93,11 @@ void printFragment(Packet fragment)
 // generate a random number and send the fragments accordingly
 void shuffleAndSend(int noOfFragments, Packet *fragmentedPackets, int clientSocket)
 {
-
     srand(time(NULL));
     int randPacket = 0;
     int checkList[noOfFragments];
 
-    ClientPacket clientPacket;      //to associate packet with client 
+    Packet packet; 
 
     for (int i = 0; i < noOfFragments; i++)
         checkList[i] = i;
@@ -106,13 +106,10 @@ void shuffleAndSend(int noOfFragments, Packet *fragmentedPackets, int clientSock
     {
         randPacket = rand() % noOfFragments;
 
-        //associating packet with client and sending the associated structure to receiver
-        clientPacket.clientId = CLIENTID;
-        clientPacket.packet = fragmentedPackets[randPacket];
-
-        send(clientSocket, (void *)&clientPacket, sizeof(clientPacket), 0);
+        send(clientSocket, (void *)&fragmentedPackets[randPacket], sizeof(fragmentedPackets[randPacket]), 0);
         updateCheckList(checkList, randPacket, noOfFragments);
-        // printFragment(fragmentedPackets[randPacket]);
+
+        printFragment(fragmentedPackets[randPacket]);
     }
 }
 
@@ -159,7 +156,6 @@ int main()
 
         if (packet.totalLength > MTU)
         {
-            // printf("Have to fragment this packet...");
             noOfFragments += (int)ceil((float)(strlen(packet.data)) / (float)(MTU - packet.headerLength));
 
             for (int fragOffset = 0; fragOffset < (packet.totalLength - packet.headerLength); fragOffset += (MTU - packet.headerLength))
@@ -168,12 +164,7 @@ int main()
         }
         else
         {
-            // printf("No need to fragment this packet...\n");
-            ClientPacket clientPacket;      //to associate packet with client 
-            clientPacket.clientId = CLIENTID;
-            clientPacket.packet = packet;
-
-            send(clientSocket, (void *)&clientPacket, sizeof(clientPacket), 0);
+            send(clientSocket, (void *)&packet, sizeof(packet), 0);
         }
 
         noOfPacket--;
