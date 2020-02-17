@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
+#include <unistd.h>
 #include "packet.h"
 #include "packetSpecificInfo.h"
 
@@ -32,7 +33,7 @@ void enQueue(Packet packet, Packet *queue, int *rear, int *front)
     if (isFull(queue, *rear, *front))
     {
         printf("Buffer size exceeds...Packets dropped...\n");
-        exit(0);
+        sleep(1);
     }
 
     pthread_mutex_lock(&bufferLock);
@@ -59,12 +60,12 @@ Packet deQueue(Packet *queue, int *rear, int *front)
     if (isEmpty(queue, *rear, *front))
     {
         printf("Nothing to read...\n");
-        exit(0);
+        sleep(1);
     }
 
     pthread_mutex_lock(&bufferLock);
 
-     Packet packet = queue[*front];
+    Packet packet = queue[*front];
     if (*front == *rear)
     {
         *front = -1;
@@ -81,6 +82,15 @@ Packet deQueue(Packet *queue, int *rear, int *front)
     pthread_mutex_unlock(&bufferLock);
 
     return packet;
+}
+
+Packet topOfQueue(Packet *queue, int rear, int front)
+{
+    while (isEmpty(queue, rear, front))
+    {
+        sleep(1);
+    }
+    return queue[front];
 }
 
 // void printQueue(struct Packet *bufferQueue){
