@@ -11,10 +11,3 @@
         } PacketSpecific;
 #endif
 
-#ifndef associatingPacketWithClient
-    #define associatingPacketWithClient
-        typedef struct{
-            int clientId;
-            Packet packet;
-        } ClientPacket;
-#endif

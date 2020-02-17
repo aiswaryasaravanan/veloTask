@@ -21,7 +21,7 @@ typedef struct
 extern struct sockaddr_in serverAddress;
 
 ClientThread clientThread[15];          //struct that associate client with the thread
-ClientPacket mainQueue[BUFFERSIZE];     
+Packet mainQueue[BUFFERSIZE];     
 
 pthread_mutex_t bufferLock;             //lock for client specific queue
 pthread_mutex_t clientThreadCounterLock;
@@ -41,6 +41,7 @@ Packet setHeader(Packet defragmentedPacket, Packet fragment)
     defragmentedPacket.headerLength = fragment.headerLength;
     defragmentedPacket.totalLength = defragmentedPacket.headerLength + strlen(defragmentedPacket.data);
     defragmentedPacket.fragmentOffset = 0;
+    defragmentedPacket.sourceAddress = fragment.sourceAddress;
     defragmentedPacket.ipflag.DF = 0;
     defragmentedPacket.ipflag.MF = 0;
     return defragmentedPacket;
@@ -71,10 +72,8 @@ void addEntry(PacketSpecific *packetSpecific, Packet packet)
     strcpy(packetSpecific[index].packet.data, "");
     packetSpecific[index].packet = setHeader(packetSpecific[index].packet, packet);
     packetSpecific[index].expectedFragment = 0;
-    packetSpecific[index].timer = 15;
+    // packetSpecific[index].timer = 15;
     packetSpecific[index].isDone = 0;
-
-    //add client ID too?
 }
 
 PacketSpecific *getEntry(PacketSpecific *packetSpecific, Packet packet)
@@ -92,6 +91,7 @@ void printDefragmentedPacket(Packet defragmentedPacket)
     printf("\n\n\nversion:%d\t", defragmentedPacket.version);
     printf("packetIdentification:%d\t", defragmentedPacket.identification);
     printf("fragmentOffset:%d\t", defragmentedPacket.fragmentOffset);
+    printf("SourceAddress:%d\n",defragmentedPacket.sourceAddress);
     printf("headerLength:%d\n", defragmentedPacket.headerLength);
     printf("Data:%s\t\t", defragmentedPacket.data);
     printf("totalLength:%d\n", defragmentedPacket.totalLength);
@@ -114,7 +114,6 @@ int isDestinedFragment(Packet fragment, int expectedFragment)
 //This will append the fragment data to the final defragmented packet's data
 PacketSpecific *deFragment(PacketSpecific *currentEntry, Packet fragment)
 {
-    // printf("defragmenting %d\n", fragment.fragmentOffset);
     strcat(currentEntry->packet.data, fragment.data);
     printf("defragmented packet data:%s\n", currentEntry->packet.data);
 
@@ -222,45 +221,45 @@ pthread_t associateClientWithNewThread(int clientId)
 
 void *receiveAndReorder(void *argv)
 {
-    ClientPacket bufferQueue[15];           //thread specific queue
+    Packet bufferQueue[15];          //thread specific queue
     Packet processedFragment[5];            //Data structure to store future fragments - thread specific
 
     PacketSpecific packetSpecific[15];
     PacketSpecific *currentEntry;
 
-    ClientPacket clientPacket;
+    Packet packet;
 
     while (1)
     {
         while (isEmpty(bufferQueue, &rear, &front) == 0)
         {
-            clientPacket = deQueue(bufferQueue, &rear, &front);
+            packet = deQueue(bufferQueue, &rear, &front);
 
-            if (isNewPacket(packetSpecific, clientPacket.packet))
-                addEntry(packetSpecific, clientPacket.packet);
+            if (isNewPacket(packetSpecific, packet))
+                addEntry(packetSpecific, packet);
 
-            currentEntry = getEntry(packetSpecific, clientPacket.packet);
+            currentEntry = getEntry(packetSpecific, packet);
 
             if (currentEntry->isDone == 1) //on receiving the duplicate fragment of already defragmented packet
                 continue;
 
-            if (clientPacket.packet.ipflag.DF == 1)
-                currentEntry->packetSize = clientPacket.packet.fragmentOffset + clientPacket.packet.totalLength;
+            if (packet.ipflag.DF == 1)
+                currentEntry->packetSize = packet.fragmentOffset + packet.totalLength;
 
-            if (isDestinedFragment(clientPacket.packet, currentEntry->expectedFragment))
+            if (isDestinedFragment(packet, currentEntry->expectedFragment))
             {
-                currentEntry = deFragment(currentEntry, clientPacket.packet);
-                int index = isNextFragmentInDS(processedFragment, clientPacket.packet, currentEntry);
+                currentEntry = deFragment(currentEntry, packet);
+                int index = isNextFragmentInDS(processedFragment, packet, currentEntry);
                 while (index >= 0)
                 {
                     currentEntry = deFragment(currentEntry, processedFragment[index]);
                     processedFragment[index].fragmentOffset = -1;
-                    index = isNextFragmentInDS(processedFragment, clientPacket.packet, currentEntry);
+                    index = isNextFragmentInDS(processedFragment, packet, currentEntry);
                 }
             }
             else
             {
-                storeInDS(processedFragment, clientPacket.packet, currentEntry->expectedFragment);
+                storeInDS(processedFragment, packet, currentEntry->expectedFragment);
             }
         }
         // suspendCurrentThread();
@@ -273,24 +272,24 @@ void *receiveAndReorder(void *argv)
 void *readFromClients(void *argv)
 {
     int *clientSocket = (int *)argv;
-    ClientPacket clientPacket;
-    int readStatus = recv(clientSocket, (struct ClientPacket *)&clientPacket, sizeof(clientPacket), 0);
-    enQueue(clientPacket, mainQueue, &rearMain, &frontMain); //enqueue packets to main queue (across clients)
+    Packet packet;
+    int readStatus = recv(clientSocket, (struct Packet *)&packet, sizeof(packet), 0);
+    enQueue(packet, mainQueue, &rearMain, &frontMain); //enqueue packets to main queue (across clients)
     return NULL;
 }
 
 void *assignee(void *argv)
 {
     pthread_t client;
-    ClientPacket clientPacket;
-    clientPacket = deQueue(mainQueue, &rearMain, &frontMain);
-    if (isNewClient(clientPacket.clientId))
+    Packet packet;
+    packet = deQueue(mainQueue, &rearMain, &frontMain);
+    if (isNewClient(packet.sourceAddress))
     {
-        client = associateClientWithNewThread(clientPacket.clientId);
-        pthread_create(&client, NULL, receiveAndReorder, (void *)&clientPacket);
+        client = associateClientWithNewThread(packet.sourceAddress);
+        pthread_create(&client, NULL, receiveAndReorder, (void *)&packet);
     }
 
-    // enQueue(clientPacket, bufferQueue, &rear, &front);       // updating child thread queue from parent thread...?   :(
+    // enQueue(packet, bufferQueue, &rear, &front);       // updating child thread queue from parent thread...?   :(
 
     return NULL;
 }

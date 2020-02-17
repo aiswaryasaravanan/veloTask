@@ -10,14 +10,14 @@ extern pthread_mutex_t bufferLock;
 
 //verify the bufferSize at receiver side.. since the speed at which the sender is sending
 // and the speed at which the receiver is receiving differs...
-int isFull(ClientPacket *queue, int rear, int front)
+int isFull(Packet *queue, int rear, int front)
 {
     if ((front == 0 && rear == BUFFERSIZE - 1) || (front == rear + 1))
         return 1;
     return 0;
 }
 
-int isEmpty(ClientPacket *queue, int rear, int front)
+int isEmpty(Packet *queue, int rear, int front)
 {
     // if((rear-front+1) == 0)
     if (front == -1)
@@ -26,7 +26,7 @@ int isEmpty(ClientPacket *queue, int rear, int front)
 }
 
 //Enqueue the fragment into the buffer(from the socket) which will later be used by the receiver
-void enQueue(ClientPacket clientPacket, ClientPacket *queue, int *rear, int *front)
+void enQueue(Packet packet, Packet *queue, int *rear, int *front)
 {
     printf("Rear before enqueue :%d\n", *rear);
     if (isFull(queue, *rear, *front))
@@ -49,12 +49,12 @@ void enQueue(ClientPacket clientPacket, ClientPacket *queue, int *rear, int *fro
         else
             *rear = (*rear + 1) % BUFFERSIZE;
     }
-    queue[*rear] = clientPacket;
+    queue[*rear] = packet;
 
     pthread_mutex_unlock(&bufferLock);
 }
 
-ClientPacket deQueue(ClientPacket *queue, int *rear, int *front)
+Packet deQueue(Packet *queue, int *rear, int *front)
 {
     if (isEmpty(queue, *rear, *front))
     {
@@ -64,7 +64,7 @@ ClientPacket deQueue(ClientPacket *queue, int *rear, int *front)
 
     pthread_mutex_lock(&bufferLock);
 
-    ClientPacket clientPacket = queue[*front];
+     Packet packet = queue[*front];
     if (*front == *rear)
     {
         *front = -1;
@@ -80,7 +80,7 @@ ClientPacket deQueue(ClientPacket *queue, int *rear, int *front)
 
     pthread_mutex_unlock(&bufferLock);
 
-    return clientPacket;
+    return packet;
 }
 
 // void printQueue(struct Packet *bufferQueue){

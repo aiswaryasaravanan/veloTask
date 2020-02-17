@@ -15,7 +15,7 @@
             IPFlag ipflag;
             int fragmentOffset;
             int identification;
-            // char* sourceAddress;
+            int sourceAddress;
             // char* destinationAddress;
             char data[200];
         } Packet;
